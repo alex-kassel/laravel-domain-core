@@ -1,0 +1,68 @@
+{
+    "name": "alex-kassel/laravel-domain-core",
+    "description": "High-cohesion Laravel platform foundation unifying Domain Context Registration, Dynamic Multi-Database Migrations, Context-Aware Eloquent Models, Standardized CLI Execution, Overlap Lock Management, Diagnostic Events, and Child Domain Package Scaffolding.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alexander Macenko",
+            "email": "alexander.macenko@gmail.com"
+        }
+    ],
+    "homepage": "https://github.com/alex-kassel/laravel-domain-core",
+    "support": {
+        "issues": "https://github.com/alex-kassel/laravel-domain-core/issues",
+        "source": "https://github.com/alex-kassel/laravel-domain-core"
+    },
+    "keywords": [
+        "laravel",
+        "domain-driven",
+        "domain-registry",
+        "multi-database",
+        "migrations",
+        "eloquent",
+        "artisan",
+        "console",
+        "lock-management",
+        "scaffolding"
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/cache": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/console": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/contracts": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/database": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/events": "^11.0 || ^12.0 || ^13.0",
+        "illuminate/support": "^11.0 || ^12.0 || ^13.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0 || ^10.0",
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "AlexKassel\\DomainCore\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AlexKassel\\DomainCore\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AlexKassel\\DomainCore\\Providers\\DomainCoreServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/phpunit"
+    },
+    "config": {
+        "sort-packages": true,
+        "preferred-install": "dist"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
