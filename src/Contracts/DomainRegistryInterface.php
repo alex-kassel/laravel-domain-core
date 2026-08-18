@@ -27,4 +27,9 @@ interface DomainRegistryInterface
      * @return array<string, DomainContext>
      */
     public function all(): array;
+
+    /**
+     * Sync registered domain contexts to central domains database table.
+     */
+    public function syncToDatabase(): void;
 }

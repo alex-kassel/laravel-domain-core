@@ -6,6 +6,7 @@ namespace AlexKassel\DomainCore\Services;
 
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\Exceptions\DomainConnectionNotFoundException;
 use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
 use AlexKassel\DomainCore\Exceptions\DomainSlugCollisionException;
 use AlexKassel\DomainCore\Exceptions\DomainSlugMismatchException;
@@ -24,7 +25,8 @@ class DomainRegistry implements DomainRegistryInterface
     private array $classToSlugMap = [];
 
     public function __construct(
-        private readonly ?DatabaseManager $db = null
+        private readonly ?DatabaseManager $db = null,
+        private readonly string $appDatabasePath = ''
     ) {}
 
     public function register(DomainContext $context): void
@@ -41,9 +43,11 @@ class DomainRegistry implements DomainRegistryInterface
             extraConfig: $context->extraConfig
         );
 
+        $this->ensureDatabaseConnection($finalContext);
+
         if ($finalContext->className !== null) {
-            $this->validateDatabaseState($finalContext);
             $this->classToSlugMap[$finalContext->className] = $resolvedSlug;
+            $this->validateDatabaseState($finalContext);
         }
 
         $this->contexts[$resolvedSlug] = $finalContext;
@@ -79,6 +83,98 @@ class DomainRegistry implements DomainRegistryInterface
     public function all(): array
     {
         return array_filter($this->contexts, static fn (DomainContext $c) => $c->isEnabled);
+    }
+
+    public function syncToDatabase(): void
+    {
+        foreach ($this->all() as $context) {
+            if ($context->className !== null) {
+                $this->validateDatabaseState($context);
+            }
+        }
+    }
+
+    public function ensureDatabaseConnection(DomainContext $context): void
+    {
+        if (!function_exists('config') || !app()->bound('config')) {
+            return;
+        }
+
+        $config = config("database.connections.{$context->connectionName}");
+
+        $migrationPath = (string) ($context->extraConfig['migration_path'] ?? '');
+        $databasePath = isset($context->extraConfig['database_path']) ? (string) $context->extraConfig['database_path'] : null;
+
+        $localPath = $databasePath;
+        if ($localPath === null) {
+            if ($migrationPath !== '') {
+                $localPath = rtrim($migrationPath, '/\\') . '/../database/' . $context->connectionName . '.sqlite';
+            } else {
+                $localPath = (function_exists('database_path') ? database_path() : 'database') . '/' . $context->connectionName . '.sqlite';
+            }
+        }
+
+        $centralPath = ($this->appDatabasePath !== '' ? $this->appDatabasePath : (function_exists('database_path') ? database_path() : 'database')) . '/' . $context->connectionName . '.sqlite';
+
+        if ($config === null) {
+            if ($context->autoCreateSqliteDatabase || str_contains($context->connectionName, 'sqlite')) {
+                $targetFile = $localPath;
+
+                if (file_exists($localPath)) {
+                    $targetFile = $localPath;
+                } elseif ($centralPath !== '' && file_exists($centralPath)) {
+                    $targetFile = $centralPath;
+                } elseif ($context->autoCreateSqliteDatabase) {
+                    $targetDir = dirname($localPath);
+                    if (!is_dir($targetDir)) {
+                        mkdir($targetDir, 0755, true);
+                    }
+                    touch($localPath);
+                    $targetFile = $localPath;
+                } else {
+                    throw DomainConnectionNotFoundException::forConnection($context->connectionName, "{$localPath}, {$centralPath}");
+                }
+
+                config([
+                    "database.connections.{$context->connectionName}" => [
+                        'driver' => 'sqlite',
+                        'database' => $targetFile,
+                        'prefix' => '',
+                        'foreign_key_constraints' => true,
+                    ],
+                ]);
+            }
+        } else {
+            $driver = $config['driver'] ?? '';
+
+            if ($driver === 'sqlite') {
+                $database = $config['database'] ?? '';
+
+                if ($database !== ':memory:' && !file_exists($database)) {
+                    if (file_exists($localPath)) {
+                        config(["database.connections.{$context->connectionName}.database" => $localPath]);
+                        return;
+                    }
+
+                    if ($centralPath !== '' && file_exists($centralPath)) {
+                        config(["database.connections.{$context->connectionName}.database" => $centralPath]);
+                        return;
+                    }
+
+                    if ($context->autoCreateSqliteDatabase) {
+                        $targetDir = dirname($localPath);
+                        if (!is_dir($targetDir)) {
+                            mkdir($targetDir, 0755, true);
+                        }
+                        touch($localPath);
+                        config(["database.connections.{$context->connectionName}.database" => $localPath]);
+                        return;
+                    }
+
+                    throw DomainConnectionNotFoundException::forConnection($context->connectionName, "{$localPath}, {$centralPath}");
+                }
+            }
+        }
     }
 
     private function resolveSlug(DomainContext $context): string
@@ -129,6 +225,12 @@ class DomainRegistry implements DomainRegistryInterface
                         (string) $context->className
                     );
                 }
+
+                $connection->table('domains')->insert([
+                    'class' => $context->className,
+                    'slug' => $context->domainSlug,
+                    'created_at' => date('Y-m-d H:i:s'),
+                ]);
             }
         } catch (\Throwable $e) {
             if ($e instanceof DomainSlugMismatchException || $e instanceof DomainSlugCollisionException) {

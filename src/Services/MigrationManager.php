@@ -68,6 +68,8 @@ class MigrationManager implements MigrationManagerInterface
             }
         }
 
+        $this->registry->syncToDatabase();
+
         $duration = microtime(true) - $startTime;
 
         return new MigrationReport(
@@ -197,6 +199,23 @@ class MigrationManager implements MigrationManagerInterface
 
     private function ensureDatabaseConnection(MigrationContext $context): void
     {
+        $domainContext = new \AlexKassel\DomainCore\DTOs\DomainContext(
+            domainSlug: $context->domainSlug,
+            packageSlug: $context->packageSlug,
+            connectionName: $context->connectionName,
+            tablePrefix: $context->tablePrefix,
+            autoCreateSqliteDatabase: $context->autoCreateDatabase,
+            extraConfig: array_filter([
+                'migration_path' => $context->migrationPath,
+                'database_path' => $context->databasePath,
+            ])
+        );
+
+        if (method_exists($this->registry, 'ensureDatabaseConnection')) {
+            $this->registry->ensureDatabaseConnection($domainContext);
+            return;
+        }
+
         $config = config("database.connections.{$context->connectionName}");
         $driver = $config['driver'] ?? '';
 
