@@ -6,15 +6,18 @@ namespace AlexKassel\DomainCore\Console\Commands;
 
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use Illuminate\Console\Command;
+use Illuminate\Console\ConfirmableTrait;
 
 final class MigrateCommand extends Command
 {
+    use ConfirmableTrait;
+
     protected $signature = 'domain:migrate
                             {domain? : The specific domain slug to migrate}
                             {--domain= : Filter by domain slug}
                             {--domains= : Filter by comma-separated domain slugs}
                             {--capability= : Filter by capability slug (e.g. scraping, normalization)}
-                            {--force : Force operation to run in production}
+                            {--force : Force operation to run in production or bypass confirmation}
                             {--pretend : Dump the SQL queries that would be run}
                             {--step= : The number of migrations to rollback if rollback mode}
                             {--rollback : Rollback the last batch of database migrations}
@@ -42,6 +45,29 @@ final class MigrateCommand extends Command
 
         $domainSlug = is_string($domain) && trim($domain) !== '' ? trim($domain) : null;
         $capabilitySlug = is_string($capability) && trim($capability) !== '' ? trim($capability) : null;
+
+        $isDestructive = $isFresh || $isRefresh || $isReset || $isRollback;
+
+        // Production Guard
+        if ($isDestructive && !$this->confirmToProceed()) {
+            return self::FAILURE;
+        }
+
+        // Global Destruction Guard: If running destructive action across all domains without explicit target
+        if ($isDestructive && $domainSlug === null && !$force) {
+            $actionName = match (true) {
+                $isFresh => 'DROP ALL TABLES and re-run migrations',
+                $isRefresh => 'RESET and re-run migrations',
+                $isReset => 'RESET all migrations',
+                default => 'ROLLBACK migrations',
+            };
+
+            $this->warn("⚠️  WARNING: You are about to {$actionName} across ALL registered domain databases!");
+            if (!$this->confirm('Are you sure you want to proceed with this global operation?', false)) {
+                $this->info('Operation cancelled by operator.');
+                return self::SUCCESS;
+            }
+        }
 
         if ($isFresh) {
             $this->info('Dropping all tables and re-migrating domain storage contexts...');
