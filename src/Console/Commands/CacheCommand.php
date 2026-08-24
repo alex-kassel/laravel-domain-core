@@ -8,24 +8,24 @@ use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
-class CacheCommand extends Command
+final class CacheCommand extends Command
 {
-    protected $signature = 'domain-core:cache';
+    protected $signature = 'domain:cache';
 
-    protected $description = 'Compile and cache registered domain contexts for production.';
+    protected $description = 'Compile and cache registered domain profiles and storage contexts';
 
     public function handle(DomainRegistryInterface $registry, Filesystem $files): int
     {
-        $this->info('Compiling domain core cache...');
+        $this->info('Compiling Domain Registry cache...');
 
-        $domains = $registry->all();
-        $cachePath = storage_path('framework/cache/domain_core.php');
+        $cachePath = $this->laravel->bootstrapPath('cache/domains.php');
 
-        $exported = "<?php\n\nreturn " . var_export($domains, true) . ";\n";
-        $files->ensureDirectoryExists(dirname($cachePath));
-        $files->put($cachePath, $exported);
+        $compiled = $registry->compileCache();
+        $export = '<?php return ' . var_export($compiled, true) . ';' . PHP_EOL;
 
-        $this->info(sprintf('Cached %d domain context(s) to [%s].', count($domains), $cachePath));
+        $files->put($cachePath, $export);
+
+        $this->info("Domain contexts cached successfully to [{$cachePath}].");
 
         return self::SUCCESS;
     }

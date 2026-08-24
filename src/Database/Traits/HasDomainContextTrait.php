@@ -4,19 +4,28 @@ declare(strict_types=1);
 
 namespace AlexKassel\DomainCore\Database\Traits;
 
-use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
+use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Facades\DomainContext;
 
 trait HasDomainContextTrait
 {
+    /**
+     * Optional explicit capability name (e.g. 'scraping', 'normalization') for this model.
+     * If null, uses the active ambient capability.
+     */
+    protected ?string $explicitCapability = null;
+
+    /**
+     * Optional base table name without dynamic prefix.
+     */
+    protected ?string $baseTable = null;
+
     public function getConnectionName(): ?string
     {
-        if ($this->connection) {
-            return $this->connection;
-        }
+        $context = $this->resolveStorageContextForModel();
 
-        if (property_exists($this, 'domainSlug') && $this->domainSlug !== null) {
-            $registry = app(DomainRegistryInterface::class);
-            return $registry->resolve($this->domainSlug)->connectionName;
+        if ($context !== null) {
+            return $context->connectionName;
         }
 
         return parent::getConnectionName();
@@ -24,21 +33,20 @@ trait HasDomainContextTrait
 
     public function getTable(): string
     {
-        $table = parent::getTable();
+        $base = $this->baseTable ?? parent::getTable();
+        $context = $this->resolveStorageContextForModel();
 
-        if (property_exists($this, 'domainSlug') && $this->domainSlug !== null) {
-            $registry = app(DomainRegistryInterface::class);
-            $rawPrefix = $registry->resolve($this->domainSlug)->tablePrefix;
-
-            if ($rawPrefix !== '') {
-                $normalizedPrefix = rtrim($rawPrefix, '_') . '_';
-
-                if (!str_starts_with($table, $normalizedPrefix)) {
-                    return $normalizedPrefix . $table;
-                }
+        if ($context !== null && $context->tablePrefix !== '') {
+            if (!str_starts_with($base, $context->tablePrefix)) {
+                return $context->tablePrefix . $base;
             }
         }
 
-        return $table;
+        return $base;
+    }
+
+    protected function resolveStorageContextForModel(): ?StorageContext
+    {
+        return DomainContext::currentOrNull();
     }
 }

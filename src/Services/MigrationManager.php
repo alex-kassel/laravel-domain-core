@@ -4,304 +4,235 @@ declare(strict_types=1);
 
 namespace AlexKassel\DomainCore\Services;
 
+use AlexKassel\DomainCore\Contracts\DomainContextManagerInterface;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
-use AlexKassel\DomainCore\DTOs\MigrationContext;
 use AlexKassel\DomainCore\DTOs\MigrationReport;
-use AlexKassel\DomainCore\Exceptions\DomainConnectionNotFoundException;
-use AlexKassel\DomainCore\Exceptions\MigrationFailedException;
-use Illuminate\Database\ConnectionInterface;
-use Illuminate\Database\DatabaseManager;
-use Illuminate\Database\Schema\Blueprint;
+use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Exceptions\DatabaseProvisioningException;
+use AlexKassel\DomainCore\Exceptions\MigrationExecutionException;
+use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\Migrations\DatabaseMigrationRepository;
+use Illuminate\Database\Migrations\Migrator;
+use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
-class MigrationManager implements MigrationManagerInterface
+final class MigrationManager implements MigrationManagerInterface
 {
     public function __construct(
-        private readonly DatabaseManager $db,
+        private readonly Application $app,
         private readonly DomainRegistryInterface $registry,
-        private readonly string $appDatabasePath = ''
+        private readonly DomainContextManagerInterface $contextManager,
+        private readonly Filesystem $files,
     ) {}
 
-    public function migrate(MigrationContext $context): MigrationReport
-    {
-        $startTime = microtime(true);
-        $this->ensureDatabaseConnection($context);
-
-        $connection = $this->db->connection($context->connectionName);
-        $tableName = $this->getMigrationsTableName($context);
-        $this->ensureMigrationTableExists($connection, $tableName);
-
-        $migrationFiles = $this->findMigrationFiles($context->migrationPath);
-        $executedBatch = $this->getNextBatchNumber($connection, $tableName);
-
-        $executed = [];
-        $failed = [];
-        $errorMessage = null;
-
-        foreach ($migrationFiles as $file) {
-            $filename = basename($file);
-            $migrationKey = sprintf('%s:%s:%s', $context->packageSlug, $context->domainSlug, $filename);
-
-            if ($this->isMigrationExecuted($connection, $tableName, $migrationKey)) {
-                continue;
-            }
-
-            try {
-                $this->runMigrationFile($connection, $file, 'up');
-
-                $connection->table($tableName)->insert([
-                    'migration' => $migrationKey,
-                    'batch' => $executedBatch,
-                ]);
-
-                $executed[] = $filename;
-            } catch (\Throwable $e) {
-                $failed[] = $filename;
-                $errorMessage = $e->getMessage();
-
-                throw MigrationFailedException::withDetails(
-                    $context->domainSlug,
-                    $context->packageSlug,
-                    $e->getMessage(),
-                    $e
-                );
-            }
-        }
-
-        $this->registry->syncToDatabase();
-
-        $duration = microtime(true) - $startTime;
-
-        return new MigrationReport(
-            domainSlug: $context->domainSlug,
-            packageSlug: $context->packageSlug,
-            connectionName: $context->connectionName,
-            tablePrefix: $context->tablePrefix,
-            executedMigrations: $executed,
-            failedMigrations: $failed,
-            errorMessage: $errorMessage,
-            durationSeconds: round($duration, 4)
-        );
-    }
-
-    public function migrateDomain(string $domainSlug): MigrationReport
-    {
-        $domain = $this->registry->resolve($domainSlug);
-        $migrationPath = $domain->extraConfig['migration_path'] ?? '';
-        $databasePath = $domain->extraConfig['database_path'] ?? null;
-
-        $context = new MigrationContext(
-            domainSlug: $domain->domainSlug,
-            packageSlug: $domain->packageSlug,
-            connectionName: $domain->connectionName,
-            tablePrefix: $domain->tablePrefix,
-            migrationPath: $migrationPath,
-            databasePath: $databasePath,
-            autoCreateDatabase: $domain->autoCreateSqliteDatabase
-        );
-
-        return $this->migrate($context);
-    }
-
-    public function rollback(MigrationContext $context, int $steps = 1): MigrationReport
-    {
-        $startTime = microtime(true);
-        $this->ensureDatabaseConnection($context);
-
-        $connection = $this->db->connection($context->connectionName);
-        $tableName = $this->getMigrationsTableName($context);
-
-        if (!$connection->getSchemaBuilder()->hasTable($tableName)) {
-            return new MigrationReport(
-                domainSlug: $context->domainSlug,
-                packageSlug: $context->packageSlug,
-                connectionName: $context->connectionName,
-                tablePrefix: $context->tablePrefix,
-                executedMigrations: []
-            );
-        }
-
-        $prefixPattern = sprintf('%s:%s:%%', $context->packageSlug, $context->domainSlug);
-        $rows = $connection->table($tableName)
-            ->where('migration', 'like', $prefixPattern)
-            ->orderBy('batch', 'desc')
-            ->orderBy('migration', 'desc')
-            ->limit($steps)
-            ->get();
-
-        $rolledBack = [];
-
-        foreach ($rows as $row) {
-            $keyParts = explode(':', (string) $row->migration);
-            $filename = end($keyParts);
-            $filePath = rtrim($context->migrationPath, '/\\') . DIRECTORY_SEPARATOR . $filename;
-
-            if (file_exists($filePath)) {
-                $this->runMigrationFile($connection, $filePath, 'down');
-            }
-
-            $connection->table($tableName)
-                ->where('migration', $row->migration)
-                ->delete();
-
-            $rolledBack[] = $filename;
-        }
-
-        $duration = microtime(true) - $startTime;
-
-        return new MigrationReport(
-            domainSlug: $context->domainSlug,
-            packageSlug: $context->packageSlug,
-            connectionName: $context->connectionName,
-            tablePrefix: $context->tablePrefix,
-            executedMigrations: $rolledBack,
-            durationSeconds: round($duration, 4)
-        );
-    }
-
-    public function status(MigrationContext $context): array
-    {
-        $this->ensureDatabaseConnection($context);
-
-        $connection = $this->db->connection($context->connectionName);
-        $tableName = $this->getMigrationsTableName($context);
-
-        $executedKeys = [];
-
-        if ($connection->getSchemaBuilder()->hasTable($tableName)) {
-            $prefixPattern = sprintf('%s:%s:%%', $context->packageSlug, $context->domainSlug);
-            $executedKeys = $connection->table($tableName)
-                ->where('migration', 'like', $prefixPattern)
-                ->pluck('migration')
-                ->all();
-        }
-
-        $migrationFiles = $this->findMigrationFiles($context->migrationPath);
+    public function migrate(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        bool $force = false,
+        bool $pretend = false
+    ): array {
+        $contexts = $this->resolveTargetContexts($domainSlug, $capabilitySlug);
         $reports = [];
 
-        foreach ($migrationFiles as $file) {
-            $filename = basename($file);
-            $key = sprintf('%s:%s:%s', $context->packageSlug, $context->domainSlug, $filename);
-            $isRun = in_array($key, $executedKeys, true);
-
-            $reports[] = new MigrationReport(
-                domainSlug: $context->domainSlug,
-                packageSlug: $context->packageSlug,
-                connectionName: $context->connectionName,
-                tablePrefix: $context->tablePrefix,
-                executedMigrations: $isRun ? [$filename] : [],
-                failedMigrations: $isRun ? [] : [$filename]
-            );
+        foreach ($contexts as $context) {
+            $reports[] = $this->migrateContext($context, $pretend);
         }
 
         return $reports;
     }
 
-    private function ensureDatabaseConnection(MigrationContext $context): void
-    {
-        $domainContext = new \AlexKassel\DomainCore\DTOs\DomainContext(
-            domainSlug: $context->domainSlug,
-            packageSlug: $context->packageSlug,
-            connectionName: $context->connectionName,
-            tablePrefix: $context->tablePrefix,
-            autoCreateSqliteDatabase: $context->autoCreateDatabase,
-            extraConfig: array_filter([
-                'migration_path' => $context->migrationPath,
-                'database_path' => $context->databasePath,
-            ])
-        );
+    public function rollback(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        int $step = 1,
+        bool $force = false
+    ): array {
+        $contexts = $this->resolveTargetContexts($domainSlug, $capabilitySlug);
+        $reports = [];
 
-        if (method_exists($this->registry, 'ensureDatabaseConnection')) {
-            $this->registry->ensureDatabaseConnection($domainContext);
-            return;
+        foreach ($contexts as $context) {
+            $reports[] = $this->rollbackContext($context, $step);
         }
 
-        $config = config("database.connections.{$context->connectionName}");
-        $driver = $config['driver'] ?? '';
+        return $reports;
+    }
 
-        if ($driver === 'sqlite') {
-            $database = $config['database'] ?? '';
+    public function ensureDatabaseExists(StorageContext $context): void
+    {
+        $connectionConfig = config("database.connections.{$context->connectionName}");
 
-            if ($database !== ':memory:' && !file_exists($database)) {
-                $searchedPaths = [];
+        // If connection not explicitly configured, try to derive SQLite default
+        if ($connectionConfig === null && $context->autoCreateSqliteDatabase) {
+            $dbPath = database_path("{$context->domainSlug}_{$context->capabilitySlug}.sqlite");
+            config([
+                "database.connections.{$context->connectionName}" => [
+                    'driver' => 'sqlite',
+                    'database' => $dbPath,
+                    'prefix' => $context->tablePrefix,
+                    'foreign_key_constraints' => true,
+                ],
+            ]);
+            $connectionConfig = config("database.connections.{$context->connectionName}");
+        }
 
-                $localPath = $context->databasePath
-                    ?? (rtrim($context->migrationPath, '/\\') . '/../database/' . $context->connectionName . '.sqlite');
-                $searchedPaths[] = $localPath;
+        if ($connectionConfig !== null && ($connectionConfig['driver'] ?? null) === 'sqlite') {
+            $dbPath = $connectionConfig['database'] ?? null;
 
-                $centralPath = ($this->appDatabasePath !== '' ? $this->appDatabasePath : (function_exists('database_path') ? database_path() : '')) . '/' . $context->connectionName . '.sqlite';
-                $searchedPaths[] = $centralPath;
-
-                if (file_exists($localPath)) {
-                    config(["database.connections.{$context->connectionName}.database" => $localPath]);
-                    return;
+            if ($dbPath !== null && $dbPath !== ':memory:' && !str_starts_with($dbPath, 'file:')) {
+                $dir = dirname($dbPath);
+                if (!$this->files->isDirectory($dir)) {
+                    $this->files->makeDirectory($dir, 0755, true, true);
                 }
 
-                if ($centralPath !== '' && file_exists($centralPath)) {
-                    config(["database.connections.{$context->connectionName}.database" => $centralPath]);
-                    return;
-                }
-
-                if ($context->autoCreateDatabase) {
-                    $targetDir = dirname($localPath);
-                    if (!is_dir($targetDir)) {
-                        mkdir($targetDir, 0755, true);
+                if (!$this->files->exists($dbPath)) {
+                    if (!$this->files->put($dbPath, '')) {
+                        throw DatabaseProvisioningException::forConnection(
+                            $context->connectionName,
+                            "Could not create SQLite database file at {$dbPath}"
+                        );
                     }
-                    touch($localPath);
-                    config(["database.connections.{$context->connectionName}.database" => $localPath]);
-                    return;
                 }
-
-                throw DomainConnectionNotFoundException::forConnection($context->connectionName, implode(', ', $searchedPaths));
             }
         }
     }
 
-    private function getMigrationsTableName(MigrationContext $context): string
+    /**
+     * @return array<int, StorageContext>
+     */
+    private function resolveTargetContexts(?string $domainSlug, ?string $capabilitySlug): array
     {
-        $prefix = rtrim($context->tablePrefix, '_');
+        $all = $this->registry->allStorageContexts();
 
-        return $prefix !== '' ? $prefix . '_migrations' : 'migrations';
+        return array_values(array_filter($all, static function (StorageContext $context) use ($domainSlug, $capabilitySlug) {
+            if ($domainSlug !== null && $context->domainSlug !== $domainSlug) {
+                return false;
+            }
+            if ($capabilitySlug !== null && $context->capabilitySlug !== $capabilitySlug) {
+                return false;
+            }
+            return true;
+        }));
     }
 
-    private function ensureMigrationTableExists(ConnectionInterface $connection, string $tableName): void
+    private function migrateContext(StorageContext $context, bool $pretend): MigrationReport
     {
-        if (!$connection->getSchemaBuilder()->hasTable($tableName)) {
-            $connection->getSchemaBuilder()->create($tableName, static function (Blueprint $table): void {
-                $table->string('migration', 255)->primary();
-                $table->integer('batch');
-            });
+        $startTime = microtime(true);
+
+        try {
+            $this->ensureDatabaseExists($context);
+
+            $migrator = $this->createMigratorForContext($context);
+
+            // Prepare migration repository table
+            if (!$migrator->repositoryExists()) {
+                $migrator->getRepository()->createRepository();
+            }
+
+            // Run migrations in ambient scope
+            $ran = $this->contextManager->using(
+                $context->domainSlug,
+                $context->capabilitySlug,
+                function () use ($migrator, $context, $pretend) {
+                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
+
+                    if (empty($existingPaths)) {
+                        return [];
+                    }
+
+                    return $migrator->run($existingPaths, ['pretend' => $pretend]);
+                }
+            );
+
+            $duration = round(microtime(true) - $startTime, 4);
+
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: is_array($ran) ? array_map('strval', $ran) : [],
+                durationSeconds: $duration,
+                status: 'SUCCESS'
+            );
+        } catch (Throwable $e) {
+            $duration = round(microtime(true) - $startTime, 4);
+
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: [],
+                durationSeconds: $duration,
+                status: 'FAILED',
+                errorMessage: $e->getMessage()
+            );
         }
     }
 
-    private function findMigrationFiles(string $path): array
+    private function rollbackContext(StorageContext $context, int $step): MigrationReport
     {
-        if (!is_dir($path)) {
-            return [];
+        $startTime = microtime(true);
+
+        try {
+            $this->ensureDatabaseExists($context);
+            $migrator = $this->createMigratorForContext($context);
+
+            if (!$migrator->repositoryExists()) {
+                return new MigrationReport(
+                    domainSlug: $context->domainSlug,
+                    capabilitySlug: $context->capabilitySlug,
+                    connectionName: $context->connectionName,
+                    executedMigrations: [],
+                    durationSeconds: round(microtime(true) - $startTime, 4),
+                    status: 'NO_OP'
+                );
+            }
+
+            $rolledBack = $this->contextManager->using(
+                $context->domainSlug,
+                $context->capabilitySlug,
+                function () use ($migrator, $context, $step) {
+                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
+
+                    if (empty($existingPaths)) {
+                        return [];
+                    }
+
+                    return $migrator->rollback($existingPaths, ['step' => $step]);
+                }
+            );
+
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
+                durationSeconds: round(microtime(true) - $startTime, 4),
+                status: 'SUCCESS'
+            );
+        } catch (Throwable $e) {
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: [],
+                durationSeconds: round(microtime(true) - $startTime, 4),
+                status: 'FAILED',
+                errorMessage: $e->getMessage()
+            );
         }
-
-        $files = glob(rtrim($path, '/\\') . '/*.php') ?: [];
-        sort($files);
-
-        return $files;
     }
 
-    private function getNextBatchNumber(ConnectionInterface $connection, string $tableName): int
+    private function createMigratorForContext(StorageContext $context): Migrator
     {
-        return ((int) $connection->table($tableName)->max('batch')) + 1;
-    }
+        $table = 'migrations';
+        $repository = new DatabaseMigrationRepository($this->app->make('db'), $table);
+        $repository->setSource($context->connectionName);
 
-    private function isMigrationExecuted(ConnectionInterface $connection, string $tableName, string $key): bool
-    {
-        return $connection->table($tableName)->where('migration', $key)->exists();
-    }
+        $migrator = new Migrator($repository, $this->app->make('db'), $this->files, $this->app->make('events'));
+        $migrator->setConnection($context->connectionName);
 
-    private function runMigrationFile(ConnectionInterface $connection, string $file, string $method): void
-    {
-        $instance = require $file;
-
-        if (is_object($instance) && method_exists($instance, $method)) {
-            $instance->{$method}();
-        }
+        return $migrator;
     }
 }

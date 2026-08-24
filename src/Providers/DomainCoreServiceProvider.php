@@ -10,51 +10,78 @@ use AlexKassel\DomainCore\Console\Commands\MakeDomainCommand;
 use AlexKassel\DomainCore\Console\Commands\MigrateCommand;
 use AlexKassel\DomainCore\Console\Commands\StatusCommand;
 use AlexKassel\DomainCore\Contracts\CommandRunnerInterface;
+use AlexKassel\DomainCore\Contracts\DomainContextManagerInterface;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use AlexKassel\DomainCore\Services\CommandRunner;
+use AlexKassel\DomainCore\Services\DomainContextManager;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Services\ExecutionLockManager;
 use AlexKassel\DomainCore\Services\MigrationManager;
-use Illuminate\Database\DatabaseManager;
+use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 
-class DomainCoreServiceProvider extends ServiceProvider
+final class DomainCoreServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(DomainRegistryInterface::class, static function ($app): DomainRegistryInterface {
-            $db = $app->bound(DatabaseManager::class) ? $app->make(DatabaseManager::class) : null;
+        $this->app->singleton(DomainRegistryInterface::class, function ($app) {
+            $registry = new DomainRegistry();
 
-            return new DomainRegistry($db);
+            $cachePath = $app->bootstrapPath('cache/domains.php');
+            if (file_exists($cachePath)) {
+                $cached = require $cachePath;
+                if (is_array($cached)) {
+                    $registry->loadFromCache($cached);
+                }
+            }
+
+            return $registry;
         });
 
-        $this->app->singleton(MigrationManagerInterface::class, static function ($app): MigrationManagerInterface {
-            $db = $app->make(DatabaseManager::class);
-            $registry = $app->make(DomainRegistryInterface::class);
+        $this->app->alias(DomainRegistryInterface::class, 'domain.registry');
 
-            return new MigrationManager($db, $registry);
+        $this->app->singleton(DomainContextManagerInterface::class, function ($app) {
+            return new DomainContextManager(
+                registry: $app->make(DomainRegistryInterface::class)
+            );
         });
 
-        $this->app->singleton(ExecutionLockManagerInterface::class, ExecutionLockManager::class);
-        $this->app->singleton(CommandRunnerInterface::class, CommandRunner::class);
+        $this->app->alias(DomainContextManagerInterface::class, 'domain.context');
+
+        $this->app->singleton(MigrationManagerInterface::class, function ($app) {
+            return new MigrationManager(
+                app: $app,
+                registry: $app->make(DomainRegistryInterface::class),
+                contextManager: $app->make(DomainContextManagerInterface::class),
+                files: $app->make('files')
+            );
+        });
+
+        $this->app->singleton(ExecutionLockManagerInterface::class, function ($app) {
+            return new ExecutionLockManager(
+                cache: $app->make('cache.store')
+            );
+        });
+
+        $this->app->singleton(CommandRunnerInterface::class, function ($app) {
+            return new CommandRunner(
+                registry: $app->make(DomainRegistryInterface::class),
+                lockManager: $app->make(ExecutionLockManagerInterface::class),
+                events: $app->make('events')
+            );
+        });
     }
 
     public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__ . '/../../database/migrations');
-
         if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__ . '/../../database/migrations' => database_path('migrations'),
-            ], 'domain-core-migrations');
-
             $this->commands([
-                CacheCommand::class,
-                ClearCommand::class,
                 MigrateCommand::class,
                 StatusCommand::class,
+                CacheCommand::class,
+                ClearCommand::class,
                 MakeDomainCommand::class,
             ]);
         }

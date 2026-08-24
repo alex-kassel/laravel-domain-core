@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Services;
 
 use AlexKassel\DomainCore\Contracts\CommandRunnerInterface;
@@ -7,129 +9,112 @@ use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
 use AlexKassel\DomainCore\DTOs\CommandExecutionReport;
 use AlexKassel\DomainCore\DTOs\CommandOptionsDTO;
-use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\DTOs\DomainProfile;
 use AlexKassel\DomainCore\Events\CommandRunSkippedDueToOverlap;
-use AlexKassel\DomainCore\Exceptions\DomainResolutionException;
 use Closure;
-use Illuminate\Contracts\Events\Dispatcher as EventDispatcher;
+use Illuminate\Contracts\Events\Dispatcher;
 use Throwable;
 
-class CommandRunner implements CommandRunnerInterface
+final class CommandRunner implements CommandRunnerInterface
 {
     public function __construct(
-        protected DomainRegistryInterface $domainRegistry,
-        protected ExecutionLockManagerInterface $lockManager,
-        protected EventDispatcher $events,
+        private readonly DomainRegistryInterface $registry,
+        private readonly ExecutionLockManagerInterface $lockManager,
+        private readonly Dispatcher $events,
     ) {}
 
-    public function parseCliOptions(array $rawOptions): CommandOptionsDTO
+    public function parseCliOptions(array $rawInput): CommandOptionsDTO
     {
-        $all = (bool) ($rawOptions['all'] ?? false);
-
-        $domains = [];
-        if (!empty($rawOptions['domains'])) {
-            $domains = is_array($rawOptions['domains'])
-                ? $rawOptions['domains']
-                : array_filter(array_map('trim', explode(',', (string) $rawOptions['domains'])));
-        }
-
-        $exceptDomains = [];
-        if (!empty($rawOptions['except-domains'])) {
-            $exceptDomains = is_array($rawOptions['except-domains'])
-                ? $rawOptions['except-domains']
-                : array_filter(array_map('trim', explode(',', (string) $rawOptions['except-domains'])));
-        }
-
-        $force = (bool) ($rawOptions['force'] ?? false);
-        $dryRun = (bool) ($rawOptions['dry-run'] ?? false);
-
-        return new CommandOptionsDTO(
-            all: $all,
-            domains: array_values($domains),
-            exceptDomains: array_values($exceptDomains),
-            force: $force,
-            dryRun: $dryRun,
-        );
+        return CommandOptionsDTO::fromArray($rawInput);
     }
 
     public function resolveTargetDomains(CommandOptionsDTO $options): array
     {
-        $registered = $this->domainRegistry->all();
+        $all = $this->registry->allDomains();
 
-        if (!empty($options->domains)) {
-            $resolved = [];
-            $missing = [];
+        if ($options->all) {
+            $targets = array_values($all);
+        } elseif (!empty($options->domains)) {
+            $targets = [];
             foreach ($options->domains as $slug) {
-                if (!isset($registered[$slug])) {
-                    $missing[] = $slug;
-                } else {
-                    $resolved[$slug] = $registered[$slug];
+                if ($this->registry->hasDomain($slug)) {
+                    $targets[] = $this->registry->getDomain($slug);
                 }
             }
-            if (!empty($missing)) {
-                throw DomainResolutionException::forMissingDomains($missing);
-            }
-        } elseif ($options->all) {
-            $resolved = $registered;
         } else {
-            $resolved = $registered;
+            $targets = array_values($all);
         }
 
         if (!empty($options->exceptDomains)) {
-            foreach ($options->exceptDomains as $exceptSlug) {
-                unset($resolved[$exceptSlug]);
-            }
+            $targets = array_values(array_filter($targets, static function (DomainProfile $domain) use ($options) {
+                return !in_array($domain->slug, $options->exceptDomains, true);
+            }));
         }
 
-        return $resolved;
+        return $targets;
     }
 
     public function executeDomain(
-        DomainContext $domain,
+        DomainProfile $domain,
         string $componentKey,
         Closure $callback,
         CommandOptionsDTO $options
     ): CommandExecutionReport {
         $startTime = microtime(true);
-        $slug = $domain->domainSlug;
+        $itemsProcessed = 0;
+        $status = 'SUCCESS';
+        $message = null;
 
-        $acquired = $this->lockManager->acquire($slug, $componentKey);
-
-        if (!$acquired) {
-            $timestamp = date('c');
-            $this->events->dispatch(new CommandRunSkippedDueToOverlap($slug, $componentKey, $timestamp));
-
+        if ($options->dryRun) {
             return new CommandExecutionReport(
-                status: 'SKIPPED',
-                domainSlug: $slug,
+                domainSlug: $domain->slug,
                 componentKey: $componentKey,
-                executedItemsCount: 0,
-                durationSeconds: round(microtime(true) - $startTime, 4),
+                status: 'SUCCESS',
+                itemsProcessed: 0,
+                durationSeconds: 0.0,
+                message: 'Dry run completed without changes.'
             );
         }
 
         try {
-            $result = $callback($domain, $options);
-            $itemsCount = is_int($result) ? $result : 0;
+            $lockAcquired = $this->lockManager->withLock(
+                domainSlug: $domain->slug,
+                componentKey: $componentKey,
+                callback: function () use ($domain, $componentKey, $callback, $options, &$itemsProcessed) {
+                    $result = $callback($domain, $options);
+                    if (is_int($result)) {
+                        $itemsProcessed = $result;
+                    }
+                },
+                force: $options->force
+            );
 
-            return new CommandExecutionReport(
-                status: 'SUCCESS',
-                domainSlug: $slug,
-                componentKey: $componentKey,
-                executedItemsCount: $itemsCount,
-                durationSeconds: round(microtime(true) - $startTime, 4),
-            );
+            if (!$lockAcquired) {
+                $this->events->dispatch(new CommandRunSkippedDueToOverlap($domain->slug, $componentKey));
+
+                return new CommandExecutionReport(
+                    domainSlug: $domain->slug,
+                    componentKey: $componentKey,
+                    status: 'SKIPPED',
+                    itemsProcessed: 0,
+                    durationSeconds: round(microtime(true) - $startTime, 4),
+                    message: "Execution skipped due to active overlap lock for domain '{$domain->slug}' on component '{$componentKey}'."
+                );
+            }
         } catch (Throwable $e) {
-            return new CommandExecutionReport(
-                status: 'FAILED',
-                domainSlug: $slug,
-                componentKey: $componentKey,
-                executedItemsCount: 0,
-                durationSeconds: round(microtime(true) - $startTime, 4),
-                errorMessage: $e->getMessage(),
-            );
-        } finally {
-            $this->lockManager->release($slug, $componentKey);
+            $status = 'FAILED';
+            $message = $e->getMessage();
         }
+
+        $duration = round(microtime(true) - $startTime, 4);
+
+        return new CommandExecutionReport(
+            domainSlug: $domain->slug,
+            componentKey: $componentKey,
+            status: $status,
+            itemsProcessed: $itemsProcessed,
+            durationSeconds: $duration,
+            message: $message
+        );
     }
 }

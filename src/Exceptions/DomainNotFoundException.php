@@ -1,13 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Exceptions;
 
 use RuntimeException;
 
-class DomainNotFoundException extends RuntimeException implements DomainCoreExceptionInterface
+final class DomainNotFoundException extends RuntimeException implements DomainCoreExceptionInterface
 {
     public static function forSlug(string $slug): self
     {
-        return new self("Domain context [{$slug}] is not registered or is disabled.");
+        return new self("Domain with slug '{$slug}' is not registered in DomainRegistry.");
     }
 }

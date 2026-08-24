@@ -7,21 +7,21 @@ namespace AlexKassel\DomainCore\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
-class ClearCommand extends Command
+final class ClearCommand extends Command
 {
-    protected $signature = 'domain-core:clear';
+    protected $signature = 'domain:clear';
 
-    protected $description = 'Clear compiled domain context cache.';
+    protected $description = 'Clear compiled domain registry cache';
 
     public function handle(Filesystem $files): int
     {
-        $cachePath = storage_path('framework/cache/domain_core.php');
+        $cachePath = $this->laravel->bootstrapPath('cache/domains.php');
 
         if ($files->exists($cachePath)) {
             $files->delete($cachePath);
-            $this->info('Domain core cache cleared successfully.');
+            $this->info('Domain registry cache cleared successfully.');
         } else {
-            $this->info('No domain core cache found.');
+            $this->info('No compiled domain registry cache found.');
         }
 
         return self::SUCCESS;

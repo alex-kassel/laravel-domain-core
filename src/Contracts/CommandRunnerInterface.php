@@ -1,31 +1,36 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Contracts;
 
 use AlexKassel\DomainCore\DTOs\CommandExecutionReport;
 use AlexKassel\DomainCore\DTOs\CommandOptionsDTO;
-use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\DTOs\DomainProfile;
 use Closure;
 
 interface CommandRunnerInterface
 {
     /**
-     * Parse raw CLI options into a typed DTO.
+     * @param array<string, mixed> $rawInput
      */
-    public function parseCliOptions(array $rawOptions): CommandOptionsDTO;
+    public function parseCliOptions(array $rawInput): CommandOptionsDTO;
 
     /**
-     * Resolve target domain contexts matching CLI options (--all, --domains, --except-domains).
-     *
-     * @return array<string, DomainContext>
+     * @return array<int, DomainProfile>
      */
     public function resolveTargetDomains(CommandOptionsDTO $options): array;
 
     /**
-     * Execute a callback for a specific domain context with automatic lock management and SKIPPED recovery.
+     * @template T
+     * @param DomainProfile $domain
+     * @param string $componentKey
+     * @param (Closure(DomainProfile, CommandOptionsDTO): T) $callback
+     * @param CommandOptionsDTO $options
+     * @return CommandExecutionReport
      */
     public function executeDomain(
-        DomainContext $domain,
+        DomainProfile $domain,
         string $componentKey,
         Closure $callback,
         CommandOptionsDTO $options

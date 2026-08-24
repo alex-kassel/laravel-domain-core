@@ -1,35 +1,55 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Contracts;
 
-use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\DTOs\DomainProfile;
+use AlexKassel\DomainCore\DTOs\StorageContext;
 
 interface DomainRegistryInterface
 {
     /**
-     * Register a domain context configuration.
-     */
-    public function register(DomainContext $context): void;
-
-    /**
-     * Resolve a registered domain context by its slug/identifier.
-     */
-    public function resolve(string $domainSlug): DomainContext;
-
-    /**
-     * Check if a domain context is registered and enabled.
-     */
-    public function has(string $domainSlug): bool;
-
-    /**
-     * Get all registered and enabled domain contexts.
+     * Register or update a domain profile.
      *
-     * @return array<string, DomainContext>
+     * @param string $slug Unique domain slug
+     * @param string $name Human-readable domain name
+     * @param array<string, mixed> $metadata Arbitrary metadata
      */
-    public function all(): array;
+    public function registerDomain(string $slug, string $name, array $metadata = []): DomainProfile;
 
     /**
-     * Sync registered domain contexts to central domains database table.
+     * Register a storage context with automatic collision detection and deduplication.
      */
-    public function syncToDatabase(): void;
+    public function registerStorageContext(StorageContext $context): void;
+
+    public function hasDomain(string $slug): bool;
+
+    public function getDomain(string $slug): DomainProfile;
+
+    /**
+     * @return array<string, DomainProfile>
+     */
+    public function allDomains(): array;
+
+    public function hasStorageContext(string $domainSlug, string $capabilitySlug): bool;
+
+    public function getStorageContext(string $domainSlug, string $capabilitySlug): StorageContext;
+
+    /**
+     * @return array<string, StorageContext>
+     */
+    public function allStorageContexts(): array;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function compileCache(): array;
+
+    /**
+     * @param array<string, mixed> $cachedData
+     */
+    public function loadFromCache(array $cachedData): void;
+
+    public function clear(): void;
 }

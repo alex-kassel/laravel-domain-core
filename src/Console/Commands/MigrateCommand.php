@@ -4,37 +4,69 @@ declare(strict_types=1);
 
 namespace AlexKassel\DomainCore\Console\Commands;
 
-use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use Illuminate\Console\Command;
 
-class MigrateCommand extends Command
+final class MigrateCommand extends Command
 {
-    protected $signature = 'domain-core:migrate {--domain= : Specific domain slug to migrate}';
+    protected $signature = 'domain:migrate
+                            {domain? : The specific domain slug to migrate}
+                            {--capability= : Filter by capability slug (e.g. scraping, normalization)}
+                            {--force : Force operation to run in production}
+                            {--pretend : Dump the SQL queries that would be run}
+                            {--step= : The number of migrations to rollback if rollback mode}
+                            {--rollback : Rollback migrations instead of running them}';
 
-    protected $description = 'Execute database migrations across all or specified registered domains.';
+    protected $description = 'Run or rollback database migrations across registered domain storage contexts';
 
-    public function handle(DomainRegistryInterface $registry, MigrationManagerInterface $manager): int
+    public function handle(MigrationManagerInterface $migrationManager): int
     {
-        $domainSlug = $this->option('domain');
+        $domain = $this->argument('domain');
+        $capability = $this->option('capability');
+        $force = (bool) $this->option('force');
+        $pretend = (bool) $this->option('pretend');
+        $isRollback = (bool) $this->option('rollback');
+        $step = (int) ($this->option('step') ?? 1);
 
-        if ($domainSlug) {
-            $this->info("Migrating domain [{$domainSlug}]...");
-            $report = $manager->migrateDomain($domainSlug);
-            $this->info(sprintf('Domain [%s]: %d migration(s) executed in %.2fs.', $domainSlug, count($report->executedMigrations), $report->durationSeconds));
+        $domainSlug = is_string($domain) && trim($domain) !== '' ? trim($domain) : null;
+        $capabilitySlug = is_string($capability) && trim($capability) !== '' ? trim($capability) : null;
+
+        $action = $isRollback ? 'Rolling back' : 'Migrating';
+        $this->info("{$action} domain storage contexts...");
+
+        $reports = $isRollback
+            ? $migrationManager->rollback($domainSlug, $capabilitySlug, $step, $force)
+            : $migrationManager->migrate($domainSlug, $capabilitySlug, $force, $pretend);
+
+        if (empty($reports)) {
+            $this->warn('No matching storage contexts found to process.');
             return self::SUCCESS;
         }
 
-        $domains = $registry->all();
-        $this->info(sprintf('Migrating %d domain(s)...', count($domains)));
+        $hasFailure = false;
+        $tableRows = [];
 
-        foreach ($domains as $domain) {
-            $report = $manager->migrateDomain($domain->domainSlug);
-            $this->info(sprintf('  - [%s]: %d migration(s) executed.', $domain->domainSlug, count($report->executedMigrations)));
+        foreach ($reports as $report) {
+            if (!$report->isSuccess()) {
+                $hasFailure = true;
+            }
+
+            $tableRows[] = [
+                $report->domainSlug,
+                $report->capabilitySlug,
+                $report->connectionName,
+                count($report->executedMigrations),
+                $report->status === 'SUCCESS' ? '<info>SUCCESS</info>' : '<error>FAILED</error>',
+                $report->durationSeconds . 's',
+                $report->errorMessage ?? '-',
+            ];
         }
 
-        $this->info('All domain migrations completed.');
+        $this->table(
+            ['Domain', 'Capability', 'Connection', 'Migrations', 'Status', 'Duration', 'Error'],
+            $tableRows
+        );
 
-        return self::SUCCESS;
+        return $hasFailure ? self::FAILURE : self::SUCCESS;
     }
 }

@@ -1,45 +1,68 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Services;
 
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
+use AlexKassel\DomainCore\Exceptions\LockAcquisitionException;
+use Closure;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Throwable;
 
-class ExecutionLockManager implements ExecutionLockManagerInterface
+final class ExecutionLockManager implements ExecutionLockManagerInterface
 {
     public function __construct(
-        protected CacheRepository $cache,
-        protected string $prefix = 'domain_core:lock:',
+        private readonly CacheRepository $cache,
     ) {}
 
-    public function acquire(string $domainSlug, string $componentKey, int $ttlSeconds = 3600): bool
-    {
-        $key = $this->getLockKey($domainSlug, $componentKey);
+    public function withLock(
+        string $domainSlug,
+        string $componentKey,
+        Closure $callback,
+        int $ttlSeconds = 3600,
+        bool $force = false
+    ): bool {
+        $lockKey = $this->formatLockKey($domainSlug, $componentKey);
 
-        return (bool) $this->cache->add($key, 1, $ttlSeconds);
+        if ($force) {
+            $this->releaseLock($domainSlug, $componentKey);
+        }
+
+        try {
+            $lock = $this->cache->lock($lockKey, $ttlSeconds);
+
+            if (!$lock->get()) {
+                return false; // Lock occupied, skipped
+            }
+
+            try {
+                $callback();
+                return true;
+            } finally {
+                $lock->release();
+            }
+        } catch (Throwable $e) {
+            throw LockAcquisitionException::forDomain($domainSlug, $componentKey, $e);
+        }
     }
 
-    public function release(string $domainSlug, string $componentKey): void
+    public function releaseLock(string $domainSlug, string $componentKey): bool
     {
-        $key = $this->getLockKey($domainSlug, $componentKey);
-        $this->cache->forget($key);
+        $lockKey = $this->formatLockKey($domainSlug, $componentKey);
+
+        return $this->cache->forget($lockKey);
     }
 
     public function isLocked(string $domainSlug, string $componentKey): bool
     {
-        $key = $this->getLockKey($domainSlug, $componentKey);
+        $lockKey = $this->formatLockKey($domainSlug, $componentKey);
 
-        return $this->cache->has($key);
+        return $this->cache->has($lockKey);
     }
 
-    public function forceRelease(string $domainSlug, string $componentKey): void
+    private function formatLockKey(string $domainSlug, string $componentKey): string
     {
-        $key = $this->getLockKey($domainSlug, $componentKey);
-        $this->cache->forget($key);
-    }
-
-    protected function getLockKey(string $domainSlug, string $componentKey): string
-    {
-        return $this->prefix . $componentKey . ':' . $domainSlug;
+        return "domain_core:lock:{$domainSlug}:{$componentKey}";
     }
 }

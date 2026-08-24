@@ -7,33 +7,70 @@ namespace AlexKassel\DomainCore\Console\Commands;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use Illuminate\Console\Command;
 
-class StatusCommand extends Command
+final class StatusCommand extends Command
 {
-    protected $signature = 'domain-core:status';
+    protected $signature = 'domain:status
+                            {domain? : Filter status by domain slug}
+                            {--capability= : Filter status by capability slug}';
 
-    protected $description = 'Display database connection, prefix, and migration status across domains.';
+    protected $description = 'Display registration status, capabilities, and storage contexts of all domains';
 
     public function handle(DomainRegistryInterface $registry): int
     {
-        $domains = $registry->all();
+        $domainFilter = $this->argument('domain');
+        $capabilityFilter = $this->option('capability');
+
+        $domains = $registry->allDomains();
 
         if (empty($domains)) {
-            $this->warn('No domain contexts currently registered.');
+            $this->info('No domains currently registered in DomainRegistry.');
             return self::SUCCESS;
         }
 
         $rows = [];
+
         foreach ($domains as $domain) {
-            $rows[] = [
-                $domain->domainSlug,
-                $domain->packageSlug,
-                $domain->connectionName,
-                $domain->tablePrefix ?: '(none)',
-                $domain->isEnabled ? 'Yes' : 'No',
-            ];
+            if ($domainFilter && $domain->slug !== $domainFilter) {
+                continue;
+            }
+
+            if (empty($domain->contexts)) {
+                $rows[] = [
+                    $domain->slug,
+                    $domain->name,
+                    '<comment>(none)</comment>',
+                    '-',
+                    '-',
+                    0,
+                ];
+                continue;
+            }
+
+            foreach ($domain->contexts as $capability => $context) {
+                if ($capabilityFilter && $capability !== $capabilityFilter) {
+                    continue;
+                }
+
+                $rows[] = [
+                    $domain->slug,
+                    $domain->name,
+                    "<info>{$capability}</info>",
+                    $context->connectionName,
+                    $context->tablePrefix !== '' ? $context->tablePrefix : '<comment>(none)</comment>',
+                    count($context->migrationPaths),
+                ];
+            }
         }
 
-        $this->table(['Domain Slug', 'Package Slug', 'Connection', 'Prefix', 'Enabled'], $rows);
+        if (empty($rows)) {
+            $this->warn('No matching domains or capabilities found.');
+            return self::SUCCESS;
+        }
+
+        $this->table(
+            ['Domain Slug', 'Domain Name', 'Capability', 'Connection', 'Table Prefix', 'Migration Paths'],
+            $rows
+        );
 
         return self::SUCCESS;
     }

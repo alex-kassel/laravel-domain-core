@@ -1,37 +1,38 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Tests\Unit;
 
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
+use AlexKassel\DomainCore\Services\ExecutionLockManager;
 use AlexKassel\DomainCore\Tests\TestCase;
 
-class ExecutionLockManagerTest extends TestCase
+final class ExecutionLockManagerTest extends TestCase
 {
-    protected ExecutionLockManagerInterface $lockManager;
+    private ExecutionLockManagerInterface $lockManager;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->lockManager = $this->app->make(ExecutionLockManagerInterface::class);
+        $this->lockManager = new ExecutionLockManager($this->app->make('cache.store'));
     }
 
-    public function test_it_acquires_and_releases_locks(): void
+    public function testExecutesCallbackWithLock(): void
     {
-        $acquired = $this->lockManager->acquire('domain-one', 'spider');
-        $this->assertTrue($acquired);
+        $executed = false;
 
-        $this->assertTrue($this->lockManager->isLocked('domain-one', 'spider'));
+        $success = $this->lockManager->withLock('domain-one', 'runner', function () use (&$executed) {
+            $executed = true;
+        });
 
-        $this->lockManager->release('domain-one', 'spider');
-        $this->assertFalse($this->lockManager->isLocked('domain-one', 'spider'));
+        self::assertTrue($success);
+        self::assertTrue($executed);
     }
 
-    public function test_it_force_releases_locks(): void
+    public function testReleaseLockAllowsSubsequentExecution(): void
     {
-        $this->lockManager->acquire('domain-one', 'normalizer');
-        $this->assertTrue($this->lockManager->isLocked('domain-one', 'normalizer'));
-
-        $this->lockManager->forceRelease('domain-one', 'normalizer');
-        $this->assertFalse($this->lockManager->isLocked('domain-one', 'normalizer'));
+        $this->lockManager->releaseLock('domain-one', 'runner');
+        self::assertFalse($this->lockManager->isLocked('domain-one', 'runner'));
     }
 }

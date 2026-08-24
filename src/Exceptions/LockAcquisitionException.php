@@ -1,13 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Exceptions;
 
 use RuntimeException;
+use Throwable;
 
-class LockAcquisitionException extends RuntimeException implements DomainCoreExceptionInterface
+final class LockAcquisitionException extends RuntimeException implements DomainCoreExceptionInterface
 {
-    public static function forBackendFailure(string $domainSlug, string $componentKey, string $error): self
+    public static function forDomain(string $domainSlug, string $componentKey, ?Throwable $previous = null): self
     {
-        return new self("Execution lock backend failed for domain [{$domainSlug}] component [{$componentKey}]: {$error}");
+        return new self(
+            "Failed to acquire lock backend for domain '{$domainSlug}' on component '{$componentKey}'.",
+            0,
+            $previous
+        );
     }
 }

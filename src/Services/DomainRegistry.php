@@ -5,237 +5,171 @@ declare(strict_types=1);
 namespace AlexKassel\DomainCore\Services;
 
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
-use AlexKassel\DomainCore\DTOs\DomainContext;
-use AlexKassel\DomainCore\Exceptions\DomainConnectionNotFoundException;
+use AlexKassel\DomainCore\DTOs\DomainProfile;
+use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
-use AlexKassel\DomainCore\Exceptions\DomainSlugCollisionException;
-use AlexKassel\DomainCore\Exceptions\DomainSlugMismatchException;
-use Illuminate\Database\DatabaseManager;
+use AlexKassel\DomainCore\Exceptions\StorageContextCollisionException;
+use AlexKassel\DomainCore\Exceptions\StorageContextNotFoundException;
 
-class DomainRegistry implements DomainRegistryInterface
+final class DomainRegistry implements DomainRegistryInterface
 {
     /**
-     * @var array<string, DomainContext> Registered domain contexts keyed by slug
+     * @var array<string, DomainProfile>
      */
-    private array $contexts = [];
+    private array $domains = [];
 
     /**
-     * @var array<string, string> Map of class names to domain slugs
+     * Map of "connectionName:tablePrefix" => domainSlug for collision detection
+     *
+     * @var array<string, string>
      */
-    private array $classToSlugMap = [];
+    private array $contextIdentityMap = [];
 
-    public function __construct(
-        private readonly ?DatabaseManager $db = null,
-        private readonly string $appDatabasePath = ''
-    ) {}
-
-    public function register(DomainContext $context): void
+    public function registerDomain(string $slug, string $name, array $metadata = []): DomainProfile
     {
-        $resolvedSlug = $this->resolveSlug($context);
-        $finalContext = new DomainContext(
-            domainSlug: $resolvedSlug,
-            packageSlug: $context->packageSlug,
-            connectionName: $context->connectionName,
-            tablePrefix: $context->tablePrefix,
-            className: $context->className,
-            isEnabled: $context->isEnabled,
-            autoCreateSqliteDatabase: $context->autoCreateSqliteDatabase,
-            extraConfig: $context->extraConfig
-        );
+        $slug = trim($slug);
 
-        $this->ensureDatabaseConnection($finalContext);
-
-        if ($finalContext->className !== null) {
-            $this->classToSlugMap[$finalContext->className] = $resolvedSlug;
-            $this->validateDatabaseState($finalContext);
+        if (!isset($this->domains[$slug])) {
+            $this->domains[$slug] = new DomainProfile(
+                slug: $slug,
+                name: $name,
+                contexts: [],
+                metadata: $metadata,
+            );
+        } else {
+            // Merge metadata
+            $existing = $this->domains[$slug];
+            $this->domains[$slug] = new DomainProfile(
+                slug: $slug,
+                name: $name !== '' ? $name : $existing->name,
+                contexts: $existing->contexts,
+                metadata: array_merge($existing->metadata, $metadata),
+            );
         }
 
-        $this->contexts[$resolvedSlug] = $finalContext;
+        return $this->domains[$slug];
     }
 
-    public function resolve(string $identifier): DomainContext
+    public function registerStorageContext(StorageContext $context): void
     {
-        $slug = $this->classToSlugMap[$identifier] ?? $identifier;
-
-        if (!isset($this->contexts[$slug])) {
-            throw DomainNotFoundException::forSlug($identifier);
+        // 1. Ensure domain profile exists (create placeholder if needed)
+        if (!isset($this->domains[$context->domainSlug])) {
+            $this->registerDomain($context->domainSlug, ucfirst(str_replace('-', ' ', $context->domainSlug)));
         }
 
-        $context = $this->contexts[$slug];
+        // 2. Collision Detection: Ensure identity key is not owned by another domain
+        $identityKey = $context->getIdentityKey();
+        if (isset($this->contextIdentityMap[$identityKey]) && $this->contextIdentityMap[$identityKey] !== $context->domainSlug) {
+            throw StorageContextCollisionException::forCollision(
+                newDomainSlug: $context->domainSlug,
+                existingDomainSlug: $this->contextIdentityMap[$identityKey],
+                connectionName: $context->connectionName,
+                tablePrefix: $context->tablePrefix
+            );
+        }
 
-        if (!$context->isEnabled) {
-            throw DomainNotFoundException::forSlug($identifier);
+        $this->contextIdentityMap[$identityKey] = $context->domainSlug;
+
+        // 3. Deduplication / Merge with existing context if present
+        $profile = $this->domains[$context->domainSlug];
+        $existing = $profile->getContext($context->capabilitySlug);
+
+        if ($existing !== null) {
+            $mergedPaths = array_values(array_unique(array_merge($existing->migrationPaths, $context->migrationPaths)));
+            $mergedOptions = array_merge($existing->extraOptions, $context->extraOptions);
+
+            $mergedContext = new StorageContext(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                tablePrefix: $context->tablePrefix,
+                migrationPaths: $mergedPaths,
+                autoCreateSqliteDatabase: $context->autoCreateSqliteDatabase || $existing->autoCreateSqliteDatabase,
+                extraOptions: $mergedOptions,
+            );
+
+            $profile->addContext($mergedContext);
+        } else {
+            $profile->addContext($context);
+        }
+    }
+
+    public function hasDomain(string $slug): bool
+    {
+        return isset($this->domains[$slug]);
+    }
+
+    public function getDomain(string $slug): DomainProfile
+    {
+        if (!isset($this->domains[$slug])) {
+            throw DomainNotFoundException::forSlug($slug);
+        }
+
+        return $this->domains[$slug];
+    }
+
+    public function allDomains(): array
+    {
+        return $this->domains;
+    }
+
+    public function hasStorageContext(string $domainSlug, string $capabilitySlug): bool
+    {
+        return isset($this->domains[$domainSlug]) && $this->domains[$domainSlug]->hasContext($capabilitySlug);
+    }
+
+    public function getStorageContext(string $domainSlug, string $capabilitySlug): StorageContext
+    {
+        $domain = $this->getDomain($domainSlug);
+        $context = $domain->getContext($capabilitySlug);
+
+        if ($context === null) {
+            throw StorageContextNotFoundException::forCapability($domainSlug, $capabilitySlug);
         }
 
         return $context;
     }
 
-    public function has(string $identifier): bool
+    public function allStorageContexts(): array
     {
-        $slug = $this->classToSlugMap[$identifier] ?? $identifier;
-
-        return isset($this->contexts[$slug]) && $this->contexts[$slug]->isEnabled;
-    }
-
-    /**
-     * @return array<string, DomainContext>
-     */
-    public function all(): array
-    {
-        return array_filter($this->contexts, static fn (DomainContext $c) => $c->isEnabled);
-    }
-
-    public function syncToDatabase(): void
-    {
-        foreach ($this->all() as $context) {
-            if ($context->className !== null) {
-                $this->validateDatabaseState($context);
-            }
-        }
-    }
-
-    public function ensureDatabaseConnection(DomainContext $context): void
-    {
-        if (!function_exists('config') || !app()->bound('config')) {
-            return;
-        }
-
-        $config = config("database.connections.{$context->connectionName}");
-
-        $migrationPath = (string) ($context->extraConfig['migration_path'] ?? '');
-        $databasePath = isset($context->extraConfig['database_path']) ? (string) $context->extraConfig['database_path'] : null;
-
-        $localPath = $databasePath;
-        if ($localPath === null) {
-            if ($migrationPath !== '') {
-                $localPath = rtrim($migrationPath, '/\\') . '/../database/' . $context->connectionName . '.sqlite';
-            } else {
-                $localPath = (function_exists('database_path') ? database_path() : 'database') . '/' . $context->connectionName . '.sqlite';
+        $all = [];
+        foreach ($this->domains as $domain) {
+            foreach ($domain->allContexts() as $context) {
+                $all["{$context->domainSlug}:{$context->capabilitySlug}"] = $context;
             }
         }
 
-        $centralPath = ($this->appDatabasePath !== '' ? $this->appDatabasePath : (function_exists('database_path') ? database_path() : 'database')) . '/' . $context->connectionName . '.sqlite';
+        return $all;
+    }
 
-        if ($config === null) {
-            if ($context->autoCreateSqliteDatabase || str_contains($context->connectionName, 'sqlite')) {
-                $targetFile = $localPath;
+    public function compileCache(): array
+    {
+        $data = [
+            'domains' => [],
+            'identities' => $this->contextIdentityMap,
+        ];
 
-                if (file_exists($localPath)) {
-                    $targetFile = $localPath;
-                } elseif ($centralPath !== '' && file_exists($centralPath)) {
-                    $targetFile = $centralPath;
-                } elseif ($context->autoCreateSqliteDatabase) {
-                    $targetDir = dirname($localPath);
-                    if (!is_dir($targetDir)) {
-                        mkdir($targetDir, 0755, true);
-                    }
-                    touch($localPath);
-                    $targetFile = $localPath;
-                } else {
-                    throw DomainConnectionNotFoundException::forConnection($context->connectionName, "{$localPath}, {$centralPath}");
-                }
+        foreach ($this->domains as $slug => $profile) {
+            $data['domains'][$slug] = $profile->toArray();
+        }
 
-                config([
-                    "database.connections.{$context->connectionName}" => [
-                        'driver' => 'sqlite',
-                        'database' => $targetFile,
-                        'prefix' => '',
-                        'foreign_key_constraints' => true,
-                    ],
-                ]);
-            }
-        } else {
-            $driver = $config['driver'] ?? '';
+        return $data;
+    }
 
-            if ($driver === 'sqlite') {
-                $database = $config['database'] ?? '';
+    public function loadFromCache(array $cachedData): void
+    {
+        $this->clear();
 
-                if ($database !== ':memory:' && !file_exists($database)) {
-                    if (file_exists($localPath)) {
-                        config(["database.connections.{$context->connectionName}.database" => $localPath]);
-                        return;
-                    }
+        $this->contextIdentityMap = (array) ($cachedData['identities'] ?? []);
 
-                    if ($centralPath !== '' && file_exists($centralPath)) {
-                        config(["database.connections.{$context->connectionName}.database" => $centralPath]);
-                        return;
-                    }
-
-                    if ($context->autoCreateSqliteDatabase) {
-                        $targetDir = dirname($localPath);
-                        if (!is_dir($targetDir)) {
-                            mkdir($targetDir, 0755, true);
-                        }
-                        touch($localPath);
-                        config(["database.connections.{$context->connectionName}.database" => $localPath]);
-                        return;
-                    }
-
-                    throw DomainConnectionNotFoundException::forConnection($context->connectionName, "{$localPath}, {$centralPath}");
-                }
-            }
+        foreach ((array) ($cachedData['domains'] ?? []) as $slug => $profileData) {
+            $this->domains[$slug] = DomainProfile::fromArray($profileData);
         }
     }
 
-    private function resolveSlug(DomainContext $context): string
+    public function clear(): void
     {
-        if ($context->domainSlug !== '') {
-            return $context->domainSlug;
-        }
-
-        $parts = explode('/', $context->packageSlug);
-
-        return end($parts) ?: $context->packageSlug;
-    }
-
-    private function validateDatabaseState(DomainContext $context): void
-    {
-        if ($this->db === null) {
-            return;
-        }
-
-        try {
-            $connection = $this->db->connection($context->connectionName);
-
-            if (!$connection->getSchemaBuilder()->hasTable('domains')) {
-                return;
-            }
-
-            $existingByClass = $connection->table('domains')
-                ->where('class', $context->className)
-                ->first();
-
-            if ($existingByClass !== null) {
-                if ($existingByClass->slug !== $context->domainSlug) {
-                    throw DomainSlugMismatchException::forMismatch(
-                        (string) $context->className,
-                        (string) $existingByClass->slug,
-                        $context->domainSlug
-                    );
-                }
-            } else {
-                $existingBySlug = $connection->table('domains')
-                    ->where('slug', $context->domainSlug)
-                    ->first();
-
-                if ($existingBySlug !== null) {
-                    throw DomainSlugCollisionException::forCollision(
-                        $context->domainSlug,
-                        (string) $existingBySlug->class,
-                        (string) $context->className
-                    );
-                }
-
-                $connection->table('domains')->insert([
-                    'class' => $context->className,
-                    'slug' => $context->domainSlug,
-                    'created_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
-        } catch (\Throwable $e) {
-            if ($e instanceof DomainSlugMismatchException || $e instanceof DomainSlugCollisionException) {
-                throw $e;
-            }
-        }
+        $this->domains = [];
+        $this->contextIdentityMap = [];
     }
 }

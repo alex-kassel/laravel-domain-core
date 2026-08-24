@@ -1,26 +1,33 @@
 <?php
 
+declare(strict_types=1);
+
 namespace AlexKassel\DomainCore\Contracts;
+
+use Closure;
 
 interface ExecutionLockManagerInterface
 {
     /**
-     * Acquire a distributed execution lock for the domain slug and component.
+     * Attempt to execute a callback with an exclusive lock for domain + component.
+     * Returns true if lock was acquired and callback ran, false if skipped due to overlap.
+     *
+     * @param string $domainSlug
+     * @param string $componentKey
+     * @param Closure(): mixed $callback
+     * @param int $ttlSeconds
+     * @param bool $force
+     * @return bool
      */
-    public function acquire(string $domainSlug, string $componentKey, int $ttlSeconds = 3600): bool;
+    public function withLock(
+        string $domainSlug,
+        string $componentKey,
+        Closure $callback,
+        int $ttlSeconds = 3600,
+        bool $force = false
+    ): bool;
 
-    /**
-     * Release an acquired execution lock.
-     */
-    public function release(string $domainSlug, string $componentKey): void;
+    public function releaseLock(string $domainSlug, string $componentKey): bool;
 
-    /**
-     * Check if an execution lock is currently held.
-     */
     public function isLocked(string $domainSlug, string $componentKey): bool;
-
-    /**
-     * Force release an execution lock (for operator administrative override).
-     */
-    public function forceRelease(string $domainSlug, string $componentKey): void;
 }
