@@ -11,6 +11,8 @@ final class MigrateCommand extends Command
 {
     protected $signature = 'domain:migrate
                             {domain? : The specific domain slug to migrate}
+                            {--domain= : Filter by domain slug}
+                            {--domains= : Filter by comma-separated domain slugs}
                             {--capability= : Filter by capability slug (e.g. scraping, normalization)}
                             {--force : Force operation to run in production}
                             {--pretend : Dump the SQL queries that would be run}
@@ -24,7 +26,11 @@ final class MigrateCommand extends Command
 
     public function handle(MigrationManagerInterface $migrationManager): int
     {
-        $domain = $this->argument('domain');
+        $domainArg = $this->argument('domain');
+        $domainOpt = $this->option('domain');
+        $domainsOpt = $this->option('domains');
+
+        $domain = $domainArg ?: ($domainOpt ?: $domainsOpt);
         $capability = $this->option('capability');
         $force = (bool) $this->option('force');
         $pretend = (bool) $this->option('pretend');

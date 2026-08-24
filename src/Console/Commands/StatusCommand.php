@@ -11,13 +11,19 @@ final class StatusCommand extends Command
 {
     protected $signature = 'domain:status
                             {domain? : Filter status by domain slug}
+                            {--domain= : Filter status by domain slug}
+                            {--domains= : Filter by comma-separated domain slugs}
                             {--capability= : Filter status by capability slug}';
 
     protected $description = 'Display registration status, capabilities, and storage contexts of all domains';
 
     public function handle(DomainRegistryInterface $registry): int
     {
-        $domainFilter = $this->argument('domain');
+        $domainArg = $this->argument('domain');
+        $domainOpt = $this->option('domain');
+        $domainsOpt = $this->option('domains');
+
+        $domainFilter = $domainArg ?: ($domainOpt ?: $domainsOpt);
         $capabilityFilter = $this->option('capability');
 
         $domains = $registry->allDomains();
