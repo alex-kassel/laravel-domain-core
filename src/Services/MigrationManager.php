@@ -87,7 +87,7 @@ final class MigrationManager implements MigrationManagerInterface
                 }
 
                 if (!$this->files->exists($dbPath)) {
-                    if (!$this->files->put($dbPath, '')) {
+                    if ($this->files->put($dbPath, '') === false) {
                         throw DatabaseProvisioningException::forConnection(
                             $context->connectionName,
                             "Could not create SQLite database file at {$dbPath}"
