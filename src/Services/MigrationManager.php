@@ -10,12 +10,11 @@ use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use AlexKassel\DomainCore\DTOs\MigrationReport;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Exceptions\DatabaseProvisioningException;
-use AlexKassel\DomainCore\Exceptions\MigrationExecutionException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Throwable;
 
 final class MigrationManager implements MigrationManagerInterface
@@ -54,6 +53,37 @@ final class MigrationManager implements MigrationManagerInterface
 
         foreach ($contexts as $context) {
             $reports[] = $this->rollbackContext($context, $step);
+        }
+
+        return $reports;
+    }
+
+    public function reset(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        bool $force = false
+    ): array {
+        $contexts = $this->resolveTargetContexts($domainSlug, $capabilitySlug);
+        $reports = [];
+
+        foreach ($contexts as $context) {
+            $reports[] = $this->resetContext($context);
+        }
+
+        return $reports;
+    }
+
+    public function fresh(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        bool $force = false
+    ): array {
+        $contexts = $this->resolveTargetContexts($domainSlug, $capabilitySlug);
+        $reports = [];
+
+        foreach ($contexts as $context) {
+            $this->dropAllTablesForContext($context);
+            $reports[] = $this->migrateContext($context, false);
         }
 
         return $reports;
@@ -221,6 +251,72 @@ final class MigrationManager implements MigrationManagerInterface
                 status: 'FAILED',
                 errorMessage: $e->getMessage()
             );
+        }
+    }
+
+    private function resetContext(StorageContext $context): MigrationReport
+    {
+        $startTime = microtime(true);
+
+        try {
+            $this->ensureDatabaseExists($context);
+            $migrator = $this->createMigratorForContext($context);
+
+            if (!$migrator->repositoryExists()) {
+                return new MigrationReport(
+                    domainSlug: $context->domainSlug,
+                    capabilitySlug: $context->capabilitySlug,
+                    connectionName: $context->connectionName,
+                    executedMigrations: [],
+                    durationSeconds: round(microtime(true) - $startTime, 4),
+                    status: 'NO_OP'
+                );
+            }
+
+            $rolledBack = $this->contextManager->using(
+                $context->domainSlug,
+                $context->capabilitySlug,
+                function () use ($migrator, $context) {
+                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
+
+                    if (empty($existingPaths)) {
+                        return [];
+                    }
+
+                    return $migrator->reset($existingPaths);
+                }
+            );
+
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
+                durationSeconds: round(microtime(true) - $startTime, 4),
+                status: 'SUCCESS'
+            );
+        } catch (Throwable $e) {
+            return new MigrationReport(
+                domainSlug: $context->domainSlug,
+                capabilitySlug: $context->capabilitySlug,
+                connectionName: $context->connectionName,
+                executedMigrations: [],
+                durationSeconds: round(microtime(true) - $startTime, 4),
+                status: 'FAILED',
+                errorMessage: $e->getMessage()
+            );
+        }
+    }
+
+    private function dropAllTablesForContext(StorageContext $context): void
+    {
+        $this->ensureDatabaseExists($context);
+
+        try {
+            Schema::connection($context->connectionName)->dropAllTables();
+            Schema::connection($context->connectionName)->dropAllViews();
+        } catch (Throwable) {
+            // Ignore if tables don't exist yet
         }
     }
 

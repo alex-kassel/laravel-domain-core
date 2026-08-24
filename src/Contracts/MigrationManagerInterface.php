@@ -42,6 +42,28 @@ interface MigrationManagerInterface
     ): array;
 
     /**
+     * Rollback all migrations across registered storage contexts.
+     *
+     * @return array<int, MigrationReport>
+     */
+    public function reset(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        bool $force = false
+    ): array;
+
+    /**
+     * Drop all tables and re-run all migrations across registered storage contexts.
+     *
+     * @return array<int, MigrationReport>
+     */
+    public function fresh(
+        ?string $domainSlug = null,
+        ?string $capabilitySlug = null,
+        bool $force = false
+    ): array;
+
+    /**
      * Ensure database file / database schema exists for a specific storage context.
      */
     public function ensureDatabaseExists(StorageContext $context): void;
