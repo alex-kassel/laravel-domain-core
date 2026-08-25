@@ -14,11 +14,16 @@ use Throwable;
 final class DomainContextManager implements DomainContextManagerInterface
 {
     /**
-     * LIFO stack of active StorageContext instances
+     * LIFO stack of active scoped StorageContext instances (from using() calls)
      *
      * @var array<int, StorageContext>
      */
     private array $contextStack = [];
+
+    /**
+     * Base manual context set via setCurrent/setCurrentContext
+     */
+    private ?StorageContext $manualContext = null;
 
     public function __construct(
         private readonly DomainRegistryInterface $registry,
@@ -48,13 +53,7 @@ final class DomainContextManager implements DomainContextManagerInterface
     public function setCurrentContext(StorageContext $context): void
     {
         $this->provisioner->provision($context);
-
-        // Replace current top of stack or push
-        if (!empty($this->contextStack)) {
-            array_pop($this->contextStack);
-        }
-
-        $this->contextStack[] = $context;
+        $this->manualContext = $context;
     }
 
     public function current(): StorageContext
@@ -70,21 +69,22 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     public function currentOrNull(): ?StorageContext
     {
-        if (empty($this->contextStack)) {
-            return null;
+        if (!empty($this->contextStack)) {
+            return $this->contextStack[array_key_last($this->contextStack)];
         }
 
-        return end($this->contextStack);
+        return $this->manualContext;
     }
 
     public function hasCurrent(): bool
     {
-        return !empty($this->contextStack);
+        return !empty($this->contextStack) || $this->manualContext !== null;
     }
 
     public function clearCurrent(): void
     {
         $this->contextStack = [];
+        $this->manualContext = null;
     }
 
     private function pushContext(StorageContext $context): void

@@ -10,6 +10,7 @@ use AlexKassel\DomainCore\Exceptions\DatabaseProvisioningException;
 use AlexKassel\DomainCore\Exceptions\StorageConnectionNotFoundException;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class DatabaseProvisioner
@@ -48,9 +49,12 @@ final class DatabaseProvisioner
                     'database' => $dbPath,
                     'prefix' => $context->tablePrefix,
                     'foreign_key_constraints' => true,
+                    'busy_timeout' => 5000,
+                    'journal_mode' => 'WAL',
                 ],
             ]);
 
+            DB::purge($context->connectionName);
             $this->ensureSqliteFileExists($dbPath, $context->connectionName);
             return;
         }
