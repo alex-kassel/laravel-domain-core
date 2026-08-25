@@ -20,7 +20,6 @@ use AlexKassel\DomainCore\Services\DomainContextManager;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Services\ExecutionLockManager;
 use AlexKassel\DomainCore\Services\MigrationManager;
-use Illuminate\Contracts\Support\DeferrableProvider;
 use Illuminate\Support\ServiceProvider;
 
 final class DomainCoreServiceProvider extends ServiceProvider
@@ -35,7 +34,7 @@ final class DomainCoreServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(DomainRegistryInterface::class, function ($app) {
-            $registry = new DomainRegistry();
+            $registry = new DomainRegistry;
 
             $cachePath = $app->bootstrapPath('cache/domains.php');
             if (file_exists($cachePath)) {

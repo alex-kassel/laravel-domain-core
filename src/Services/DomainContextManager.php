@@ -8,8 +8,12 @@ use AlexKassel\DomainCore\Contracts\DomainContextManagerInterface;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Exceptions\NoActiveStorageContextException;
+use AlexKassel\DomainCore\Storage\DatabaseStorage;
+use AlexKassel\DomainCore\Storage\FileStorage;
+use AlexKassel\DomainCore\Storage\RedisStorage;
 use Closure;
-use Throwable;
+use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Storage;
 
 final class DomainContextManager implements DomainContextManagerInterface
 {
@@ -69,7 +73,7 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     public function currentOrNull(): ?StorageContext
     {
-        if (!empty($this->contextStack)) {
+        if (! empty($this->contextStack)) {
             return $this->contextStack[array_key_last($this->contextStack)];
         }
 
@@ -78,7 +82,7 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     public function hasCurrent(): bool
     {
-        return !empty($this->contextStack) || $this->manualContext !== null;
+        return ! empty($this->contextStack) || $this->manualContext !== null;
     }
 
     public function clearCurrent(): void
@@ -87,25 +91,26 @@ final class DomainContextManager implements DomainContextManagerInterface
         $this->manualContext = null;
     }
 
-    public function database(): \AlexKassel\DomainCore\Storage\DatabaseStorage
+    public function database(): DatabaseStorage
     {
         return $this->current()->asDatabase();
     }
 
-    public function filesystem(): \AlexKassel\DomainCore\Storage\FileStorage
+    public function filesystem(): FileStorage
     {
         return $this->current()->asFilesystem();
     }
 
-    public function redis(): \AlexKassel\DomainCore\Storage\RedisStorage
+    public function redis(): RedisStorage
     {
         return $this->current()->asRedis();
     }
 
-    public function disk(): \Illuminate\Contracts\Filesystem\Filesystem
+    public function disk(): Filesystem
     {
         $fileStorage = $this->filesystem();
-        return \Illuminate\Support\Facades\Storage::disk($fileStorage->disk);
+
+        return Storage::disk($fileStorage->disk);
     }
 
     private function pushContext(StorageContext $context): void

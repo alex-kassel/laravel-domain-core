@@ -12,11 +12,10 @@ use AlexKassel\DomainCore\Storage\FileStorage;
 use AlexKassel\DomainCore\Storage\RedisStorage;
 use AlexKassel\DomainCore\Storage\StorageFactory;
 use AlexKassel\DomainCore\Tests\TestCase;
-use InvalidArgumentException;
 
 final class StorageTypesTest extends TestCase
 {
-    public function testDatabaseStoragePropertiesAndSerialization(): void
+    public function test_database_storage_properties_and_serialization(): void
     {
         $db = new DatabaseStorage(
             connectionName: 'mysql_custom',
@@ -42,7 +41,7 @@ final class StorageTypesTest extends TestCase
         self::assertSame('prefix_', $restored->tablePrefix);
     }
 
-    public function testFileStoragePropertiesAndSerialization(): void
+    public function test_file_storage_properties_and_serialization(): void
     {
         $file = new FileStorage(
             disk: 's3',
@@ -64,7 +63,7 @@ final class StorageTypesTest extends TestCase
         self::assertSame('leasing/raw/', $restored->basePath);
     }
 
-    public function testRedisStoragePropertiesAndSerialization(): void
+    public function test_redis_storage_properties_and_serialization(): void
     {
         $redis = new RedisStorage(
             connection: 'cache_redis',
@@ -86,7 +85,7 @@ final class StorageTypesTest extends TestCase
         self::assertSame('leasing:cache:', $restored->keyPrefix);
     }
 
-    public function testStorageFactoryInstantiatesCorrectTypes(): void
+    public function test_storage_factory_instantiates_correct_types(): void
     {
         $db = StorageFactory::fromArray([
             'driver' => 'database',
@@ -107,7 +106,7 @@ final class StorageTypesTest extends TestCase
         self::assertInstanceOf(RedisStorage::class, $redis);
     }
 
-    public function testStorageContextDowncastingThrowsIncompatibleStorageException(): void
+    public function test_storage_context_downcasting_throws_incompatible_storage_exception(): void
     {
         $fileContext = StorageContext::filesystem('domain-one', 'assets', 's3');
 

@@ -38,13 +38,14 @@ final class StatusCommand extends Command
 
         if (empty($domains)) {
             $this->info('No domains currently registered in DomainRegistry.');
+
             return self::SUCCESS;
         }
 
         $rows = [];
 
         foreach ($domains as $domain) {
-            if (!empty($domainsList) && !in_array($domain->slug, $domainsList, true)) {
+            if (! empty($domainsList) && ! in_array($domain->slug, $domainsList, true)) {
                 continue;
             }
 
@@ -57,6 +58,7 @@ final class StatusCommand extends Command
                     '-',
                     0,
                 ];
+
                 continue;
             }
 
@@ -102,6 +104,7 @@ final class StatusCommand extends Command
 
         if (empty($rows)) {
             $this->warn('No matching domains or contexts found.');
+
             return self::SUCCESS;
         }
 

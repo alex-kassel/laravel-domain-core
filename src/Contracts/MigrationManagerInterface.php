@@ -12,10 +12,6 @@ interface MigrationManagerInterface
     /**
      * Run migrations across registered storage contexts with optional domain/context filtering.
      *
-     * @param string|null $domainSlug
-     * @param string|null $contextSlug
-     * @param bool $force
-     * @param bool $pretend
      * @return array<int, MigrationReport>
      */
     public function migrate(
@@ -28,10 +24,6 @@ interface MigrationManagerInterface
     /**
      * Rollback migrations across registered storage contexts.
      *
-     * @param string|null $domainSlug
-     * @param string|null $contextSlug
-     * @param int $step
-     * @param bool $force
      * @return array<int, MigrationReport>
      */
     public function rollback(

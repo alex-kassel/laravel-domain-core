@@ -7,8 +7,11 @@ namespace AlexKassel\DomainCore\Tests\Unit;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
+use AlexKassel\DomainCore\Exceptions\IncompatibleStorageException;
 use AlexKassel\DomainCore\Tests\TestCase;
 use Illuminate\Filesystem\Filesystem;
+use Illuminate\Support\Facades\Schema;
 
 final class MigrationManagerTest extends TestCase
 {
@@ -18,8 +21,8 @@ final class MigrationManagerTest extends TestCase
     {
         parent::setUp();
 
-        $files = new Filesystem();
-        $this->tempMigrationDir = __DIR__ . '/../fixtures/migrations';
+        $files = new Filesystem;
+        $this->tempMigrationDir = __DIR__.'/../fixtures/migrations';
         $files->makeDirectory($this->tempMigrationDir, 0755, true, true);
 
         $migrationContent = <<<PHP
@@ -80,12 +83,12 @@ PHP;
 
     protected function tearDown(): void
     {
-        $files = new Filesystem();
-        $files->deleteDirectory(__DIR__ . '/../fixtures');
+        $files = new Filesystem;
+        $files->deleteDirectory(__DIR__.'/../fixtures');
         parent::tearDown();
     }
 
-    public function testMigrateRunsAcrossTargetContexts(): void
+    public function test_migrate_runs_across_target_contexts(): void
     {
         $manager = $this->app->make(MigrationManagerInterface::class);
 
@@ -102,7 +105,7 @@ PHP;
         self::assertCount(2, $allReports);
     }
 
-    public function testMigrateSkipsFilesystemContextsInBulk(): void
+    public function test_migrate_skips_filesystem_contexts_in_bulk(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
         $registry->registerStorageContext(StorageContext::filesystem(
@@ -118,7 +121,7 @@ PHP;
         self::assertCount(2, $allReports);
     }
 
-    public function testMigrateExplicitFilesystemContextThrowsIncompatibleStorageException(): void
+    public function test_migrate_explicit_filesystem_context_throws_incompatible_storage_exception(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
         $registry->registerStorageContext(StorageContext::filesystem(
@@ -129,11 +132,11 @@ PHP;
 
         $manager = $this->app->make(MigrationManagerInterface::class);
 
-        $this->expectException(\AlexKassel\DomainCore\Exceptions\IncompatibleStorageException::class);
+        $this->expectException(IncompatibleStorageException::class);
         $manager->migrate('domain-one', 'assets', true);
     }
 
-    public function testRollbackAcrossTargetContexts(): void
+    public function test_rollback_across_target_contexts(): void
     {
         $manager = $this->app->make(MigrationManagerInterface::class);
 
@@ -148,7 +151,7 @@ PHP;
         self::assertCount(1, $reports[0]->executedMigrations);
     }
 
-    public function testFailsWhenMigrationDirectoryDoesNotExist(): void
+    public function test_fails_when_migration_directory_does_not_exist(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
         $registry->registerStorageContext(StorageContext::database(
@@ -167,15 +170,15 @@ PHP;
         self::assertStringContainsString('does not exist on filesystem', $reports[0]->errorMessage ?? '');
     }
 
-    public function testThrowsDomainNotFoundExceptionWhenMigratingUnregisteredDomain(): void
+    public function test_throws_domain_not_found_exception_when_migrating_unregistered_domain(): void
     {
         $manager = $this->app->make(MigrationManagerInterface::class);
 
-        $this->expectException(\AlexKassel\DomainCore\Exceptions\DomainNotFoundException::class);
+        $this->expectException(DomainNotFoundException::class);
         $manager->migrate('non-existent-domain', null, true);
     }
 
-    public function testFreshPreservesTablesOfOtherDomainsOnSharedDatabase(): void
+    public function test_fresh_preserves_tables_of_other_domains_on_shared_database(): void
     {
         // 1. Configure a single shared sqlite database for both domain-a and domain-b
         config([
@@ -218,7 +221,7 @@ PHP;
 
         // Verify that domain-a and domain-b migrations ran, and isolation table naming works
         $db = $this->app->make('db')->connection('sqlite_shared_db');
-        $schema = \Illuminate\Support\Facades\Schema::connection('sqlite_shared_db');
+        $schema = Schema::connection('sqlite_shared_db');
 
         // Both domain_a and domain_b migration tables exist
         self::assertTrue($schema->hasTable('prefix_a_migrations'));

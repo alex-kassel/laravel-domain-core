@@ -11,7 +11,7 @@ use Illuminate\Filesystem\Filesystem;
 
 final class ConsoleCommandsTest extends TestCase
 {
-    public function testDomainStatusCommand(): void
+    public function test_domain_status_command(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
 
@@ -33,7 +33,7 @@ final class ConsoleCommandsTest extends TestCase
             );
     }
 
-    public function testDomainStatusWithCommaSeparatedDomains(): void
+    public function test_domain_status_with_comma_separated_domains(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
 
@@ -66,7 +66,7 @@ final class ConsoleCommandsTest extends TestCase
             );
     }
 
-    public function testDomainCacheAndClearCommands(): void
+    public function test_domain_cache_and_clear_commands(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
         $registry->registerDomain('domain-one', 'Domain One');
@@ -80,9 +80,9 @@ final class ConsoleCommandsTest extends TestCase
         self::assertFileDoesNotExist($cacheFile);
     }
 
-    public function testDomainMakeDomainCommand(): void
+    public function test_domain_make_domain_command(): void
     {
-        $files = new Filesystem();
+        $files = new Filesystem;
         $targetDir = base_path('packages/test-vendor/demo-domain');
 
         try {

@@ -7,10 +7,10 @@ namespace AlexKassel\DomainCore\DTOs;
 final class DomainProfile
 {
     /**
-     * @param string $slug Unique domain slug (e.g., 'domain-one')
-     * @param string $name Human-readable domain name (e.g., 'Domain One')
-     * @param array<string, StorageContext> $contexts Storage contexts keyed by context slug
-     * @param array<string, mixed> $metadata Arbitrary domain metadata
+     * @param  string  $slug  Unique domain slug (e.g., 'domain-one')
+     * @param  string  $name  Human-readable domain name (e.g., 'Domain One')
+     * @param  array<string, StorageContext|mixed>  $contexts  Storage contexts keyed by context slug
+     * @param  array<string, mixed>  $metadata  Arbitrary domain metadata
      */
     public function __construct(
         public readonly string $slug,
@@ -18,7 +18,7 @@ final class DomainProfile
         public array $contexts = [],
         public array $metadata = [],
     ) {
-        if (trim($this->slug) === '' || !preg_match('/^[a-z0-9\-_]+$/i', $this->slug)) {
+        if (trim($this->slug) === '' || ! preg_match('/^[a-z0-9\-_]+$/i', $this->slug)) {
             throw new \InvalidArgumentException(
                 "Invalid domain slug '{$this->slug}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
             );
@@ -30,7 +30,7 @@ final class DomainProfile
 
         $validatedContexts = [];
         foreach ($this->contexts as $context) {
-            if (!$context instanceof StorageContext) {
+            if (! $context instanceof StorageContext) {
                 throw new \InvalidArgumentException('Contexts array must contain only StorageContext instances.');
             }
             if ($context->domainSlug !== $this->slug) {
@@ -52,6 +52,7 @@ final class DomainProfile
         }
 
         $this->contexts[$context->contextSlug] = $context;
+
         return $this;
     }
 
@@ -63,18 +64,21 @@ final class DomainProfile
     public function getDatabaseContext(string $contextSlug): ?StorageContext
     {
         $context = $this->getContext($contextSlug);
+
         return ($context !== null && $context->isDatabase()) ? $context : null;
     }
 
     public function getFilesystemContext(string $contextSlug): ?StorageContext
     {
         $context = $this->getContext($contextSlug);
+
         return ($context !== null && $context->isFilesystem()) ? $context : null;
     }
 
     public function getRedisContext(string $contextSlug): ?StorageContext
     {
         $context = $this->getContext($contextSlug);
+
         return ($context !== null && $context->isRedis()) ? $context : null;
     }
 
@@ -92,7 +96,7 @@ final class DomainProfile
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function fromArray(array $data): self
     {

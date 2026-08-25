@@ -37,10 +37,10 @@ final class CommandRunner implements CommandRunnerInterface
 
         if ($options->all) {
             $targets = array_values($all);
-        } elseif (!empty($options->domains)) {
+        } elseif (! empty($options->domains)) {
             $targets = [];
             foreach ($options->domains as $slug) {
-                if (!$this->registry->hasDomain($slug)) {
+                if (! $this->registry->hasDomain($slug)) {
                     throw DomainNotFoundException::forSlug($slug);
                 }
                 $targets[] = $this->registry->getDomain($slug);
@@ -49,9 +49,9 @@ final class CommandRunner implements CommandRunnerInterface
             $targets = array_values($all);
         }
 
-        if (!empty($options->exceptDomains)) {
+        if (! empty($options->exceptDomains)) {
             $targets = array_values(array_filter($targets, static function (DomainProfile $domain) use ($options) {
-                return !in_array($domain->slug, $options->exceptDomains, true);
+                return ! in_array($domain->slug, $options->exceptDomains, true);
             }));
         }
 
@@ -84,7 +84,7 @@ final class CommandRunner implements CommandRunnerInterface
             $lockAcquired = $this->lockManager->withLock(
                 domainSlug: $domain->slug,
                 componentKey: $componentKey,
-                callback: function () use ($domain, $componentKey, $callback, $options, &$itemsProcessed) {
+                callback: function () use ($domain, $callback, $options, &$itemsProcessed) {
                     $result = $callback($domain, $options);
                     if (is_int($result)) {
                         $itemsProcessed = $result;
@@ -94,7 +94,7 @@ final class CommandRunner implements CommandRunnerInterface
                 force: $options->force
             );
 
-            if (!$lockAcquired) {
+            if (! $lockAcquired) {
                 $this->events->dispatch(new CommandRunSkippedDueToOverlap($domain->slug, $componentKey));
 
                 return new CommandExecutionReport(

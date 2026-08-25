@@ -12,7 +12,7 @@ use Closure;
 interface CommandRunnerInterface
 {
     /**
-     * @param array<string, mixed> $rawInput
+     * @param  array<string, mixed>  $rawInput
      */
     public function parseCliOptions(array $rawInput): CommandOptionsDTO;
 
@@ -23,11 +23,8 @@ interface CommandRunnerInterface
 
     /**
      * @template T
-     * @param DomainProfile $domain
-     * @param string $componentKey
-     * @param (Closure(DomainProfile, CommandOptionsDTO): T) $callback
-     * @param CommandOptionsDTO $options
-     * @return CommandExecutionReport
+     *
+     * @param  (Closure(DomainProfile, CommandOptionsDTO): T)  $callback
      */
     public function executeDomain(
         DomainProfile $domain,

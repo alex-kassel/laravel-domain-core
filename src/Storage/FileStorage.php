@@ -11,9 +11,9 @@ use InvalidArgumentException;
 final class FileStorage implements StorageInterface
 {
     /**
-     * @param string $disk Laravel filesystem disk name (e.g. 'local', 'public', 's3')
-     * @param string $basePath Base relative path/prefix for domain context files (e.g. 'leasing/raw/')
-     * @param array<string, mixed> $extraOptions Custom filesystem metadata
+     * @param  string  $disk  Laravel filesystem disk name (e.g. 'local', 'public', 's3')
+     * @param  string  $basePath  Base relative path/prefix for domain context files (e.g. 'leasing/raw/')
+     * @param  array<string, mixed>  $extraOptions  Custom filesystem metadata
      */
     public function __construct(
         public readonly string $disk,
@@ -33,11 +33,12 @@ final class FileStorage implements StorageInterface
     public function getIdentityKey(): string
     {
         $normalizedPath = trim($this->basePath, '/');
+
         return "filesystem:{$this->disk}:{$normalizedPath}";
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function fromArray(array $data): self
     {

@@ -12,8 +12,8 @@ final class DatabaseProvisioningException extends RuntimeException implements Do
     public static function forConnection(string $connectionName, string $reason, ?Throwable $previous = null): self
     {
         return new self(
-            "[PROBLEM] Failed to provision database for connection '{$connectionName}'. " .
-            "[CAUSE] {$reason}. " .
+            "[PROBLEM] Failed to provision database for connection '{$connectionName}'. ".
+            "[CAUSE] {$reason}. ".
             "[RESOLUTION] Verify filesystem write permissions, disk space, and directory paths configured for database connection '{$connectionName}'.",
             0,
             $previous

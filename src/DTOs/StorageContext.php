@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AlexKassel\DomainCore\DTOs;
 
 use AlexKassel\DomainCore\Contracts\Storage\StorageInterface;
-use AlexKassel\DomainCore\Enums\StorageDriverType;
 use AlexKassel\DomainCore\Exceptions\IncompatibleStorageException;
 use AlexKassel\DomainCore\Storage\DatabaseStorage;
 use AlexKassel\DomainCore\Storage\FileStorage;
@@ -24,10 +23,10 @@ use InvalidArgumentException;
 final class StorageContext
 {
     /**
-     * @param string $domainSlug Unique domain slug (e.g., 'domain-one')
-     * @param string $contextSlug Unique context slug (e.g., 'primary', 'archive', 'analytics')
-     * @param StorageInterface $storage Physical storage backend instance
-     * @param array<string, mixed> $extraOptions Custom metadata for context storage
+     * @param  string  $domainSlug  Unique domain slug (e.g., 'domain-one')
+     * @param  string  $contextSlug  Unique context slug (e.g., 'primary', 'archive', 'analytics')
+     * @param  StorageInterface  $storage  Physical storage backend instance
+     * @param  array<string, mixed>  $extraOptions  Custom metadata for context storage
      */
     public function __construct(
         public readonly string $domainSlug,
@@ -42,13 +41,13 @@ final class StorageContext
     /**
      * Create a Relational Database Storage Context.
      *
-     * @param string $domainSlug Domain slug (e.g. 'leasing')
-     * @param string $contextSlug Context slug (e.g. 'primary', 'scraping')
-     * @param string $connectionName Database connection name (e.g. 'sqlite_leasing_primary')
-     * @param string $tablePrefix Table prefix (e.g. 'leasing_primary_')
-     * @param array<int, string> $migrationPaths Absolute directory paths with migrations
-     * @param bool $autoCreateSqliteDatabase Whether to auto-create SQLite DB
-     * @param array<string, mixed> $extraOptions Custom metadata
+     * @param  string  $domainSlug  Domain slug (e.g. 'leasing')
+     * @param  string  $contextSlug  Context slug (e.g. 'primary', 'scraping')
+     * @param  string  $connectionName  Database connection name (e.g. 'sqlite_leasing_primary')
+     * @param  string  $tablePrefix  Table prefix (e.g. 'leasing_primary_')
+     * @param  array<int, string>  $migrationPaths  Absolute directory paths with migrations
+     * @param  bool  $autoCreateSqliteDatabase  Whether to auto-create SQLite DB
+     * @param  array<string, mixed>  $extraOptions  Custom metadata
      */
     public static function database(
         string $domainSlug,
@@ -76,11 +75,11 @@ final class StorageContext
     /**
      * Create a Filesystem / Object Storage Context.
      *
-     * @param string $domainSlug Domain slug (e.g. 'leasing')
-     * @param string $contextSlug Context slug (e.g. 'frontend', 'raw')
-     * @param string $disk Laravel filesystem disk (e.g. 's3', 'local')
-     * @param string $basePath Base path/folder (e.g. 'leasing/raw/')
-     * @param array<string, mixed> $extraOptions Custom metadata
+     * @param  string  $domainSlug  Domain slug (e.g. 'leasing')
+     * @param  string  $contextSlug  Context slug (e.g. 'frontend', 'raw')
+     * @param  string  $disk  Laravel filesystem disk (e.g. 's3', 'local')
+     * @param  string  $basePath  Base path/folder (e.g. 'leasing/raw/')
+     * @param  array<string, mixed>  $extraOptions  Custom metadata
      */
     public static function filesystem(
         string $domainSlug,
@@ -104,11 +103,11 @@ final class StorageContext
     /**
      * Create a Redis Storage Context.
      *
-     * @param string $domainSlug Domain slug (e.g. 'leasing')
-     * @param string $contextSlug Context slug (e.g. 'queue', 'cache')
-     * @param string $connection Redis connection name (e.g. 'default')
-     * @param string $keyPrefix Redis key prefix (e.g. 'leasing:queue:')
-     * @param array<string, mixed> $extraOptions Custom metadata
+     * @param  string  $domainSlug  Domain slug (e.g. 'leasing')
+     * @param  string  $contextSlug  Context slug (e.g. 'queue', 'cache')
+     * @param  string  $connection  Redis connection name (e.g. 'default')
+     * @param  string  $keyPrefix  Redis key prefix (e.g. 'leasing:queue:')
+     * @param  array<string, mixed>  $extraOptions  Custom metadata
      */
     public static function redis(
         string $domainSlug,
@@ -136,7 +135,7 @@ final class StorageContext
 
     public function asDatabase(): DatabaseStorage
     {
-        if (!$this->isDatabase()) {
+        if (! $this->isDatabase()) {
             throw IncompatibleStorageException::forTypeMismatch(
                 $this->domainSlug,
                 $this->contextSlug,
@@ -156,7 +155,7 @@ final class StorageContext
 
     public function asFilesystem(): FileStorage
     {
-        if (!$this->isFilesystem()) {
+        if (! $this->isFilesystem()) {
             throw IncompatibleStorageException::forTypeMismatch(
                 $this->domainSlug,
                 $this->contextSlug,
@@ -176,7 +175,7 @@ final class StorageContext
 
     public function asRedis(): RedisStorage
     {
-        if (!$this->isRedis()) {
+        if (! $this->isRedis()) {
             throw IncompatibleStorageException::forTypeMismatch(
                 $this->domainSlug,
                 $this->contextSlug,
@@ -201,6 +200,7 @@ final class StorageContext
     {
         if ($this->isDatabase()) {
             $db = $this->asDatabase();
+
             return match ($name) {
                 'connectionName' => $db->connectionName,
                 'tablePrefix' => $db->tablePrefix,
@@ -223,7 +223,7 @@ final class StorageContext
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function fromArray(array $data): self
     {
@@ -247,7 +247,7 @@ final class StorageContext
 
     private function validateSlug(string $field, string $value): void
     {
-        if (trim($value) === '' || !preg_match('/^[a-z0-9\-_]+$/i', $value)) {
+        if (trim($value) === '' || ! preg_match('/^[a-z0-9\-_]+$/i', $value)) {
             throw new InvalidArgumentException(
                 "Invalid {$field} '{$value}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
             );

@@ -21,14 +21,14 @@ final class CacheCommand extends Command
         $cachePath = $this->laravel->bootstrapPath('cache/domains.php');
 
         $compiled = $registry->compileCache();
-        $export = '<?php return ' . var_export($compiled, true) . ';' . PHP_EOL;
+        $export = '<?php return '.var_export($compiled, true).';'.PHP_EOL;
 
         $dir = dirname($cachePath);
-        if (!$files->isDirectory($dir)) {
+        if (! $files->isDirectory($dir)) {
             $files->makeDirectory($dir, 0755, true, true);
         }
 
-        $tmpPath = $cachePath . '.' . uniqid('domains_', true) . '.tmp';
+        $tmpPath = $cachePath.'.'.uniqid('domains_', true).'.tmp';
         $files->put($tmpPath, $export);
         $files->move($tmpPath, $cachePath);
 

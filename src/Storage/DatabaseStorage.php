@@ -11,11 +11,11 @@ use InvalidArgumentException;
 final class DatabaseStorage implements MigratableStorageInterface
 {
     /**
-     * @param string $connectionName Database connection name (e.g., 'sqlite_domain_one_primary')
-     * @param string $tablePrefix Table prefix (e.g., 'one_primary_')
-     * @param array<int, string> $migrationPaths Absolute directory paths containing migrations
-     * @param bool $autoCreateSqliteDatabase Whether to automatically create SQLite database file if missing
-     * @param array<string, mixed> $extraOptions Custom metadata
+     * @param  string  $connectionName  Database connection name (e.g., 'sqlite_domain_one_primary')
+     * @param  string  $tablePrefix  Table prefix (e.g., 'one_primary_')
+     * @param  array<int, string>  $migrationPaths  Absolute directory paths containing migrations
+     * @param  bool  $autoCreateSqliteDatabase  Whether to automatically create SQLite database file if missing
+     * @param  array<string, mixed>  $extraOptions  Custom metadata
      */
     public function __construct(
         public readonly string $connectionName,
@@ -29,7 +29,7 @@ final class DatabaseStorage implements MigratableStorageInterface
         }
 
         foreach ($this->migrationPaths as $path) {
-            if (!is_string($path) || trim($path) === '') {
+            if (trim((string) $path) === '') {
                 throw new InvalidArgumentException('Migration paths must be an array of non-empty strings.');
             }
         }
@@ -66,7 +66,7 @@ final class DatabaseStorage implements MigratableStorageInterface
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function fromArray(array $data): self
     {
@@ -75,7 +75,7 @@ final class DatabaseStorage implements MigratableStorageInterface
             tablePrefix: (string) ($data['tablePrefix'] ?? $data['table_prefix'] ?? ''),
             migrationPaths: array_values(array_filter(
                 (array) ($data['migrationPaths'] ?? $data['migration_paths'] ?? $data['migrations'] ?? []),
-                static fn($path) => is_string($path) && trim($path) !== ''
+                static fn ($path) => is_string($path) && trim($path) !== ''
             )),
             autoCreateSqliteDatabase: (bool) ($data['autoCreateSqliteDatabase'] ?? $data['auto_create_sqlite_database'] ?? false),
             extraOptions: (array) ($data['extraOptions'] ?? $data['extra_options'] ?? []),

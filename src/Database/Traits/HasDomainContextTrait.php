@@ -58,7 +58,7 @@ trait HasDomainContextTrait
             if ($db->tablePrefix !== '') {
                 $connectionPrefix = (string) config("database.connections.{$db->connectionName}.prefix", '');
                 if ($connectionPrefix === '') {
-                    return $db->tablePrefix . $base;
+                    return $db->tablePrefix.$base;
                 }
             }
         }
@@ -93,6 +93,7 @@ trait HasDomainContextTrait
             if ($this->explicitContext !== null && $this->explicitContext !== $ambient->contextSlug) {
                 return DomainRegistry::getStorageContext($ambient->domainSlug, $this->explicitContext);
             }
+
             return $ambient;
         }
 

@@ -19,8 +19,11 @@ final class MakeDomainCommand extends Command
 
     public function handle(Filesystem $files): int
     {
-        $domain = Str::kebab((string) $this->argument('domain'));
-        $vendor = Str::kebab((string) $this->option('vendor'));
+        $rawDomain = $this->argument('domain');
+        $rawVendor = $this->option('vendor');
+
+        $domain = Str::kebab(is_string($rawDomain) ? $rawDomain : '');
+        $vendor = Str::kebab(is_string($rawVendor) ? $rawVendor : 'alex-kassel');
 
         $studlyDomain = Str::studly($domain);
         $studlyVendor = Str::studly($vendor);
@@ -71,7 +74,7 @@ final class MakeDomainCommand extends Command
     }
 }
 JSON;
-        $files->put("{$targetDir}/composer.json", $composerJson . PHP_EOL);
+        $files->put("{$targetDir}/composer.json", $composerJson.PHP_EOL);
 
         // config/domain.php
         $configFile = <<<PHP
@@ -93,7 +96,7 @@ return [
     ],
 ];
 PHP;
-        $files->put("{$targetDir}/config/domain.php", $configFile . PHP_EOL);
+        $files->put("{$targetDir}/config/domain.php", $configFile.PHP_EOL);
 
         // ServiceProvider
         $serviceProvider = <<<PHP
@@ -136,7 +139,7 @@ final class {$studlyDomain}ServiceProvider extends ServiceProvider
     }
 }
 PHP;
-        $files->put("{$targetDir}/src/Providers/{$studlyDomain}ServiceProvider.php", $serviceProvider . PHP_EOL);
+        $files->put("{$targetDir}/src/Providers/{$studlyDomain}ServiceProvider.php", $serviceProvider.PHP_EOL);
 
         // tests/bootstrap.php
         $testBootstrap = <<<PHP
@@ -163,10 +166,10 @@ if (\$autoloader === null) {
 
 \$autoloader->addPsr4('{$studlyVendor}\\\\{$studlyDomain}\\\\Tests\\\\', __DIR__);
 PHP;
-        $files->put("{$targetDir}/tests/bootstrap.php", $testBootstrap . PHP_EOL);
+        $files->put("{$targetDir}/tests/bootstrap.php", $testBootstrap.PHP_EOL);
 
         // phpunit.xml
-        $phpunitXml = <<<XML
+        $phpunitXml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd"
@@ -179,7 +182,7 @@ PHP;
     </testsuites>
 </phpunit>
 XML;
-        $files->put("{$targetDir}/phpunit.xml", $phpunitXml . PHP_EOL);
+        $files->put("{$targetDir}/phpunit.xml", $phpunitXml.PHP_EOL);
 
         $this->info("Domain package [{$vendor}/{$domain}] scaffolded successfully.");
 

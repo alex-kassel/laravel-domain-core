@@ -6,6 +6,4 @@ namespace AlexKassel\DomainCore\Exceptions;
 
 use RuntimeException;
 
-final class DomainResolutionException extends RuntimeException implements DomainCoreExceptionInterface
-{
-}
+final class DomainResolutionException extends RuntimeException implements DomainCoreExceptionInterface {}

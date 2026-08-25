@@ -10,7 +10,7 @@ use AlexKassel\DomainCore\DTOs\StorageContext;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static DomainProfile registerDomain(string $slug, string $name, array $metadata = [])
+ * @method static DomainProfile registerDomain(string $slug, string $name, array<string, mixed> $metadata = [])
  * @method static void registerStorageContext(StorageContext $context)
  * @method static bool hasDomain(string $slug)
  * @method static DomainProfile getDomain(string $slug)
@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\Facade;
  * @method static bool hasStorageContext(string $domainSlug, string $contextSlug)
  * @method static StorageContext getStorageContext(string $domainSlug, string $contextSlug)
  * @method static array<string, StorageContext> allStorageContexts()
- * @method static array compileCache()
- * @method static void loadFromCache(array $cachedData)
+ * @method static array<string, mixed> compileCache()
+ * @method static void loadFromCache(array<string, mixed> $cachedData)
  * @method static void clear()
  *
  * @see \AlexKassel\DomainCore\Services\DomainRegistry

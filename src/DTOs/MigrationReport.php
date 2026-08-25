@@ -9,13 +9,7 @@ use AlexKassel\DomainCore\Enums\MigrationStatus;
 final class MigrationReport
 {
     /**
-     * @param string $domainSlug
-     * @param string $contextSlug
-     * @param string $connectionName
-     * @param array<int, string> $executedMigrations
-     * @param float $durationSeconds
-     * @param MigrationStatus $status
-     * @param string|null $errorMessage
+     * @param  array<int, string>  $executedMigrations
      */
     public function __construct(
         public readonly string $domainSlug,

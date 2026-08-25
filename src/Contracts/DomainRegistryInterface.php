@@ -12,9 +12,9 @@ interface DomainRegistryInterface
     /**
      * Register or update a domain profile.
      *
-     * @param string $slug Unique domain slug
-     * @param string $name Human-readable domain name
-     * @param array<string, mixed> $metadata Arbitrary metadata
+     * @param  string  $slug  Unique domain slug
+     * @param  string  $name  Human-readable domain name
+     * @param  array<string, mixed>  $metadata  Arbitrary metadata
      */
     public function registerDomain(string $slug, string $name, array $metadata = []): DomainProfile;
 
@@ -47,7 +47,7 @@ interface DomainRegistryInterface
     public function compileCache(): array;
 
     /**
-     * @param array<string, mixed> $cachedData
+     * @param  array<string, mixed>  $cachedData
      */
     public function loadFromCache(array $cachedData): void;
 

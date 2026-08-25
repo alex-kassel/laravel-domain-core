@@ -22,7 +22,7 @@ final class DatabaseProvisioner
 
     public function provision(StorageContext $context): void
     {
-        if (!$context->isDatabase()) {
+        if (! $context->isDatabase()) {
             return; // Non-relational storage (e.g. FileStorage, RedisStorage) does not require DB connection provisioning
         }
 
@@ -30,7 +30,7 @@ final class DatabaseProvisioner
         $connectionConfig = config("database.connections.{$db->connectionName}");
 
         if ($connectionConfig === null) {
-            if (!$db->autoCreateSqliteDatabase) {
+            if (! $db->autoCreateSqliteDatabase) {
                 $suggestedAction = "Define database connection '{$db->connectionName}' in config/database.php or enable autoCreateSqliteDatabase: true in StorageContext.";
                 $this->events->dispatch(new StorageConnectionMissing(
                     domainSlug: $context->domainSlug,
@@ -61,6 +61,7 @@ final class DatabaseProvisioner
 
             DB::purge($db->connectionName);
             $this->ensureSqliteFileExists($dbPath, $db->connectionName);
+
             return;
         }
 
@@ -80,11 +81,11 @@ final class DatabaseProvisioner
 
         try {
             $dir = dirname($dbPath);
-            if (!$this->files->isDirectory($dir)) {
+            if (! $this->files->isDirectory($dir)) {
                 $this->files->makeDirectory($dir, 0755, true, true);
             }
 
-            if (!$this->files->exists($dbPath)) {
+            if (! $this->files->exists($dbPath)) {
                 if ($this->files->put($dbPath, '') === false) {
                     throw DatabaseProvisioningException::forConnection(
                         $connectionName,

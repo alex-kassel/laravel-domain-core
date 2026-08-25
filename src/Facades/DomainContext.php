@@ -6,6 +6,7 @@ namespace AlexKassel\DomainCore\Facades;
 
 use AlexKassel\DomainCore\Contracts\DomainContextManagerInterface;
 use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Services\DomainContextManager;
 use Closure;
 use Illuminate\Support\Facades\Facade;
 
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \AlexKassel\DomainCore\Storage\RedisStorage redis()
  * @method static \Illuminate\Contracts\Filesystem\Filesystem disk()
  *
- * @see \AlexKassel\DomainCore\Services\DomainContextManager
+ * @see DomainContextManager
  */
 final class DomainContext extends Facade
 {

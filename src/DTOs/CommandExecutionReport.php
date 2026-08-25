@@ -9,13 +9,7 @@ use AlexKassel\DomainCore\Enums\ExecutionStatus;
 final class CommandExecutionReport
 {
     /**
-     * @param string $domainSlug
-     * @param string $componentKey
-     * @param ExecutionStatus $status
-     * @param int $itemsProcessed
-     * @param float $durationSeconds
-     * @param string|null $message
-     * @param array<string, mixed> $extraMetrics
+     * @param  array<string, mixed>  $extraMetrics
      */
     public function __construct(
         public readonly string $domainSlug,

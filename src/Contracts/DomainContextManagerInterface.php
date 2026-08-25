@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace AlexKassel\DomainCore\Contracts;
 
 use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Storage\DatabaseStorage;
+use AlexKassel\DomainCore\Storage\FileStorage;
+use AlexKassel\DomainCore\Storage\RedisStorage;
 use Closure;
+use Illuminate\Contracts\Filesystem\Filesystem;
 
 interface DomainContextManagerInterface
 {
@@ -14,9 +18,8 @@ interface DomainContextManagerInterface
      * Automatically restores the previous scope upon completion or failure.
      *
      * @template T
-     * @param string $domainSlug
-     * @param string $contextSlug
-     * @param (Closure(StorageContext): T) $callback
+     *
+     * @param  (Closure(StorageContext): T)  $callback
      * @return T
      */
     public function using(string $domainSlug, string $contextSlug, Closure $callback): mixed;
@@ -55,22 +58,22 @@ interface DomainContextManagerInterface
      * Get the DatabaseStorage of the current active context.
      * Throws IncompatibleStorageException if the active context is not a database.
      */
-    public function database(): \AlexKassel\DomainCore\Storage\DatabaseStorage;
+    public function database(): DatabaseStorage;
 
     /**
      * Get the FileStorage of the current active context.
      * Throws IncompatibleStorageException if the active context is not a filesystem.
      */
-    public function filesystem(): \AlexKassel\DomainCore\Storage\FileStorage;
+    public function filesystem(): FileStorage;
 
     /**
      * Get the RedisStorage of the current active context.
      * Throws IncompatibleStorageException if the active context is not a redis backend.
      */
-    public function redis(): \AlexKassel\DomainCore\Storage\RedisStorage;
+    public function redis(): RedisStorage;
 
     /**
      * Get a Laravel Filesystem adapter for the active filesystem storage context.
      */
-    public function disk(): \Illuminate\Contracts\Filesystem\Filesystem;
+    public function disk(): Filesystem;
 }

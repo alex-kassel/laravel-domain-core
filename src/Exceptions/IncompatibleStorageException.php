@@ -16,8 +16,8 @@ final class IncompatibleStorageException extends RuntimeException implements Dom
         string $expectedType
     ): self {
         return new self(
-            "[PROBLEM] Incompatible storage driver requested for context '{$contextSlug}' in domain '{$domainSlug}'. " .
-            "[CAUSE] Context is configured with driver '{$actualType->value}', but '{$expectedType}' was required by caller. " .
+            "[PROBLEM] Incompatible storage driver requested for context '{$contextSlug}' in domain '{$domainSlug}'. ".
+            "[CAUSE] Context is configured with driver '{$actualType->value}', but '{$expectedType}' was required by caller. ".
             "[RESOLUTION] Check context configuration in config/domain.php or use the appropriate typed getter/adapter (e.g. as{$expectedType}())."
         );
     }

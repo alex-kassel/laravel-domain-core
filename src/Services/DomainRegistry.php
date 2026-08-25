@@ -29,13 +29,13 @@ final class DomainRegistry implements DomainRegistryInterface
     {
         $slug = trim($slug);
 
-        if ($slug === '' || !preg_match('/^[a-z0-9\-_]+$/i', $slug)) {
+        if ($slug === '' || ! preg_match('/^[a-z0-9\-_]+$/i', $slug)) {
             throw new \InvalidArgumentException(
                 "Invalid domain slug '{$slug}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
             );
         }
 
-        if (!isset($this->domains[$slug])) {
+        if (! isset($this->domains[$slug])) {
             $this->domains[$slug] = new DomainProfile(
                 slug: $slug,
                 name: $name,
@@ -59,7 +59,7 @@ final class DomainRegistry implements DomainRegistryInterface
     public function registerStorageContext(StorageContext $context): void
     {
         // 1. Ensure domain profile exists (create placeholder if needed)
-        if (!isset($this->domains[$context->domainSlug])) {
+        if (! isset($this->domains[$context->domainSlug])) {
             $this->registerDomain($context->domainSlug, ucfirst(str_replace('-', ' ', $context->domainSlug)));
         }
 
@@ -126,7 +126,7 @@ final class DomainRegistry implements DomainRegistryInterface
 
     public function getDomain(string $slug): DomainProfile
     {
-        if (!isset($this->domains[$slug])) {
+        if (! isset($this->domains[$slug])) {
             throw DomainNotFoundException::forSlug($slug);
         }
 

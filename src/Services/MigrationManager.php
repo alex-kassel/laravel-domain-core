@@ -13,7 +13,6 @@ use AlexKassel\DomainCore\Enums\MigrationStatus;
 use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
 use AlexKassel\DomainCore\Exceptions\IncompatibleStorageException;
 use AlexKassel\DomainCore\Exceptions\MigrationExecutionException;
-use AlexKassel\DomainCore\Exceptions\StorageContextNotFoundException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Database\Migrations\Migrator;
@@ -104,13 +103,13 @@ final class MigrationManager implements MigrationManagerInterface
      */
     private function resolveTargetContexts(?string $domainSlug, ?string $contextSlug): array
     {
-        if ($domainSlug !== null && !$this->registry->hasDomain($domainSlug)) {
+        if ($domainSlug !== null && ! $this->registry->hasDomain($domainSlug)) {
             throw DomainNotFoundException::forSlug($domainSlug);
         }
 
         if ($domainSlug !== null && $contextSlug !== null) {
             $context = $this->registry->getStorageContext($domainSlug, $contextSlug);
-            if (!$context->isDatabase()) {
+            if (! $context->isDatabase()) {
                 throw IncompatibleStorageException::forTypeMismatch(
                     $domainSlug,
                     $contextSlug,
@@ -118,13 +117,14 @@ final class MigrationManager implements MigrationManagerInterface
                     'Database'
                 );
             }
+
             return [$context];
         }
 
         $all = $this->registry->allStorageContexts();
 
         return array_values(array_filter($all, static function (StorageContext $context) use ($domainSlug, $contextSlug) {
-            if (!$context->isDatabase()) {
+            if (! $context->isDatabase()) {
                 return false; // Skip non-relational storages (FileStorage, RedisStorage) from automated migrations
             }
             if ($domainSlug !== null && $context->domainSlug !== $domainSlug) {
@@ -133,6 +133,7 @@ final class MigrationManager implements MigrationManagerInterface
             if ($contextSlug !== null && $context->contextSlug !== $contextSlug) {
                 return false;
             }
+
             return true;
         }));
     }
@@ -146,7 +147,7 @@ final class MigrationManager implements MigrationManagerInterface
             $this->ensureDatabaseExists($context);
 
             foreach ($db->migrationPaths as $path) {
-                if (!$this->files->isDirectory($path)) {
+                if (! $this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
                         $context->contextSlug,
@@ -163,7 +164,7 @@ final class MigrationManager implements MigrationManagerInterface
                 $migrator = $this->createMigratorForContext($context);
 
                 // Prepare migration repository table
-                if (!$migrator->repositoryExists()) {
+                if (! $migrator->repositoryExists()) {
                     $migrator->getRepository()->createRepository();
                 }
 
@@ -217,7 +218,7 @@ final class MigrationManager implements MigrationManagerInterface
             $this->ensureDatabaseExists($context);
 
             foreach ($db->migrationPaths as $path) {
-                if (!$this->files->isDirectory($path)) {
+                if (! $this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
                         $context->contextSlug,
@@ -233,7 +234,7 @@ final class MigrationManager implements MigrationManagerInterface
             try {
                 $migrator = $this->createMigratorForContext($context);
 
-                if (!$migrator->repositoryExists()) {
+                if (! $migrator->repositoryExists()) {
                     return new MigrationReport(
                         domainSlug: $context->domainSlug,
                         contextSlug: $context->contextSlug,
@@ -289,7 +290,7 @@ final class MigrationManager implements MigrationManagerInterface
             $this->ensureDatabaseExists($context);
 
             foreach ($db->migrationPaths as $path) {
-                if (!$this->files->isDirectory($path)) {
+                if (! $this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
                         $context->contextSlug,
@@ -305,7 +306,7 @@ final class MigrationManager implements MigrationManagerInterface
             try {
                 $migrator = $this->createMigratorForContext($context);
 
-                if (!$migrator->repositoryExists()) {
+                if (! $migrator->repositoryExists()) {
                     return new MigrationReport(
                         domainSlug: $context->domainSlug,
                         contextSlug: $context->contextSlug,
@@ -371,6 +372,7 @@ final class MigrationManager implements MigrationManagerInterface
                 }
             }
             $connection->statement('PRAGMA foreign_keys = ON;');
+
             return;
         }
 
@@ -391,6 +393,7 @@ final class MigrationManager implements MigrationManagerInterface
                 $schema->dropAllTables();
             }
             $connection->statement('SET FOREIGN_KEY_CHECKS = 1;');
+
             return;
         }
 
@@ -409,6 +412,7 @@ final class MigrationManager implements MigrationManagerInterface
                 $schema->dropAllViews();
                 $schema->dropAllTables();
             }
+
             return;
         }
 

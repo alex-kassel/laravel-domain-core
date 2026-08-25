@@ -13,16 +13,18 @@ use AlexKassel\DomainCore\Services\DatabaseProvisioner;
 use AlexKassel\DomainCore\Services\DomainContextManager;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Tests\TestCase;
+use Illuminate\Contracts\Filesystem\Filesystem;
 
 final class DomainContextManagerTest extends TestCase
 {
     private DomainRegistryInterface $registry;
+
     private DomainContextManagerInterface $manager;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->registry = new DomainRegistry();
+        $this->registry = new DomainRegistry;
         $provisioner = $this->app->make(DatabaseProvisioner::class);
         $this->manager = new DomainContextManager($this->registry, $provisioner);
 
@@ -50,19 +52,19 @@ final class DomainContextManagerTest extends TestCase
         ));
     }
 
-    public function testThrowsExceptionWhenAccessingCurrentWithoutActiveContext(): void
+    public function test_throws_exception_when_accessing_current_without_active_context(): void
     {
         $this->expectException(NoActiveStorageContextException::class);
         $this->manager->current();
     }
 
-    public function testCurrentOrNullReturnsNullWhenNoActiveContext(): void
+    public function test_current_or_null_returns_null_when_no_active_context(): void
     {
         self::assertNull($this->manager->currentOrNull());
         self::assertFalse($this->manager->hasCurrent());
     }
 
-    public function testUsingExecutesInsideScopeAndRestoresContextOnExit(): void
+    public function test_using_executes_inside_scope_and_restores_context_on_exit(): void
     {
         self::assertFalse($this->manager->hasCurrent());
 
@@ -79,7 +81,7 @@ final class DomainContextManagerTest extends TestCase
         self::assertFalse($this->manager->hasCurrent());
     }
 
-    public function testTypedStorageGettersInActiveScope(): void
+    public function test_typed_storage_getters_in_active_scope(): void
     {
         // Database scope
         $this->manager->using('domain-one', 'primary', function () {
@@ -90,11 +92,11 @@ final class DomainContextManagerTest extends TestCase
         $this->manager->using('domain-one', 'files', function () {
             self::assertSame('local', $this->manager->filesystem()->disk);
             self::assertSame('domain-one/files', $this->manager->filesystem()->basePath);
-            self::assertInstanceOf(\Illuminate\Contracts\Filesystem\Filesystem::class, $this->manager->disk());
+            self::assertInstanceOf(Filesystem::class, $this->manager->disk());
         });
     }
 
-    public function testSupportsNestedScopesWithLIFORestoration(): void
+    public function test_supports_nested_scopes_with_lifo_restoration(): void
     {
         $this->manager->using('domain-one', 'primary', function () {
             self::assertSame('primary', $this->manager->current()->contextSlug);
@@ -111,7 +113,7 @@ final class DomainContextManagerTest extends TestCase
         self::assertFalse($this->manager->hasCurrent());
     }
 
-    public function testManualSetCurrentAndClearCurrent(): void
+    public function test_manual_set_current_and_clear_current(): void
     {
         $ctx = $this->manager->setCurrent('domain-one', 'archive');
 
@@ -122,7 +124,7 @@ final class DomainContextManagerTest extends TestCase
         self::assertFalse($this->manager->hasCurrent());
     }
 
-    public function testManualSetCurrentDoesNotBreakScopedUsingStack(): void
+    public function test_manual_set_current_does_not_break_scoped_using_stack(): void
     {
         $this->manager->using('domain-one', 'primary', function () {
             self::assertSame('primary', $this->manager->current()->contextSlug);
@@ -142,7 +144,7 @@ final class DomainContextManagerTest extends TestCase
         self::assertFalse($this->manager->hasCurrent());
     }
 
-    public function testThrowsStorageConnectionNotFoundExceptionWhenConnectionMissingAndAutoCreateDisabled(): void
+    public function test_throws_storage_connection_not_found_exception_when_connection_missing_and_auto_create_disabled(): void
     {
         $this->registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-two',

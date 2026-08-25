@@ -8,7 +8,6 @@ use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
 use AlexKassel\DomainCore\Exceptions\StorageContextCollisionException;
-use AlexKassel\DomainCore\Exceptions\StorageContextNotFoundException;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Tests\TestCase;
 
@@ -19,10 +18,10 @@ final class DomainRegistryTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->registry = new DomainRegistry();
+        $this->registry = new DomainRegistry;
     }
 
-    public function testCanRegisterAndRetrieveDomainProfile(): void
+    public function test_can_register_and_retrieve_domain_profile(): void
     {
         $profile = $this->registry->registerDomain('domain-one', 'Domain One', ['category' => 'leasing']);
 
@@ -35,13 +34,13 @@ final class DomainRegistryTest extends TestCase
         self::assertSame($profile, $retrieved);
     }
 
-    public function testThrowsExceptionWhenResolvingUnregisteredDomain(): void
+    public function test_throws_exception_when_resolving_unregistered_domain(): void
     {
         $this->expectException(DomainNotFoundException::class);
         $this->registry->getDomain('unknown-domain');
     }
 
-    public function testCanRegisterAndRetrieveStorageContext(): void
+    public function test_can_register_and_retrieve_storage_context(): void
     {
         $context = StorageContext::database(
             domainSlug: 'domain-one',
@@ -63,7 +62,7 @@ final class DomainRegistryTest extends TestCase
         self::assertSame('one_primary_', $retrieved->asDatabase()->tablePrefix);
     }
 
-    public function testThrowsExceptionOnStorageContextCollisionBetweenDifferentDomains(): void
+    public function test_throws_exception_on_storage_context_collision_between_different_domains(): void
     {
         $context1 = StorageContext::database(
             domainSlug: 'domain-one',
@@ -85,7 +84,7 @@ final class DomainRegistryTest extends TestCase
         $this->registry->registerStorageContext($context2);
     }
 
-    public function testDeduplicatesAndMergesContextForSameDomainAndContextSlug(): void
+    public function test_deduplicates_and_merges_context_for_same_domain_and_context_slug(): void
     {
         $context1 = StorageContext::database(
             domainSlug: 'domain-one',
@@ -110,13 +109,13 @@ final class DomainRegistryTest extends TestCase
         self::assertEqualsCanonicalizing(['/path/one', '/path/two'], $merged->asDatabase()->migrationPaths);
     }
 
-    public function testThrowsExceptionOnInvalidDomainSlug(): void
+    public function test_throws_exception_on_invalid_domain_slug(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->registry->registerDomain('invalid slug with spaces', 'Invalid Domain');
     }
 
-    public function testThrowsExceptionOnStorageContextMergeWithDifferentConnection(): void
+    public function test_throws_exception_on_storage_context_merge_with_different_connection(): void
     {
         $context1 = StorageContext::database(
             domainSlug: 'domain-one',
@@ -138,7 +137,7 @@ final class DomainRegistryTest extends TestCase
         $this->registry->registerStorageContext($context2);
     }
 
-    public function testCanCompileAndLoadCache(): void
+    public function test_can_compile_and_load_cache(): void
     {
         $this->registry->registerDomain('domain-one', 'Domain One');
         $this->registry->registerStorageContext(StorageContext::database(
@@ -156,7 +155,7 @@ final class DomainRegistryTest extends TestCase
 
         $compiled = $this->registry->compileCache();
 
-        $newRegistry = new DomainRegistry();
+        $newRegistry = new DomainRegistry;
         $newRegistry->loadFromCache($compiled);
 
         self::assertTrue($newRegistry->hasDomain('domain-one'));

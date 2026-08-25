@@ -6,6 +6,4 @@ namespace AlexKassel\DomainCore\Exceptions;
 
 use RuntimeException;
 
-final class ScaffoldingException extends RuntimeException implements DomainCoreExceptionInterface
-{
-}
+final class ScaffoldingException extends RuntimeException implements DomainCoreExceptionInterface {}

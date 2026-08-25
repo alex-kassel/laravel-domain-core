@@ -5,8 +5,8 @@ declare(strict_types=1);
 $autoloader = null;
 
 $candidates = [
-    __DIR__ . '/../vendor/autoload.php',
-    __DIR__ . '/../../../../vendor/autoload.php',
+    __DIR__.'/../vendor/autoload.php',
+    __DIR__.'/../../../../vendor/autoload.php',
 ];
 
 foreach ($candidates as $candidate) {

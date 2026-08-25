@@ -11,9 +11,9 @@ use InvalidArgumentException;
 final class RedisStorage implements StorageInterface
 {
     /**
-     * @param string $connection Redis connection name from config/database.php (e.g. 'default', 'cache')
-     * @param string $keyPrefix Key prefix for domain isolation (e.g. 'leasing:queue:')
-     * @param array<string, mixed> $extraOptions Custom redis metadata
+     * @param  string  $connection  Redis connection name from config/database.php (e.g. 'default', 'cache')
+     * @param  string  $keyPrefix  Key prefix for domain isolation (e.g. 'leasing:queue:')
+     * @param  array<string, mixed>  $extraOptions  Custom redis metadata
      */
     public function __construct(
         public readonly string $connection = 'default',
@@ -36,7 +36,7 @@ final class RedisStorage implements StorageInterface
     }
 
     /**
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public static function fromArray(array $data): self
     {

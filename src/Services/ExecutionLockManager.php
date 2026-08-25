@@ -8,6 +8,8 @@ use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
 use AlexKassel\DomainCore\Events\LockAcquisitionFailed;
 use AlexKassel\DomainCore\Exceptions\LockAcquisitionException;
 use Closure;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Contracts\Cache\LockProvider;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Events\Dispatcher;
 use Throwable;
@@ -33,22 +35,23 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         }
 
         try {
-            $lock = method_exists($this->cache, 'lock')
-                ? $this->cache->lock($lockKey, $ttlSeconds)
-                : $this->cache->getStore()->lock($lockKey, $ttlSeconds);
-
+            $lock = $this->createLock($lockKey, $ttlSeconds);
             $acquired = $lock->get();
         } catch (Throwable $e) {
             $this->events->dispatch(LockAcquisitionFailed::fromThrowable($domainSlug, $componentKey, $e));
             throw LockAcquisitionException::forDomain($domainSlug, $componentKey, $e);
         }
 
-        if (!$acquired) {
+        if (! $acquired) {
             return false; // Lock occupied, skipped
         }
 
         // Register POSIX signal handling on supported platforms (Linux/macOS)
-        $hasPcntl = extension_loaded('pcntl') && function_exists('pcntl_signal') && function_exists('pcntl_async_signals');
+        $hasPcntl = extension_loaded('pcntl')
+            && function_exists('pcntl_signal')
+            && function_exists('pcntl_async_signals')
+            && defined('SIGTERM')
+            && defined('SIGINT');
         if ($hasPcntl) {
             pcntl_async_signals(true);
             $signalHandler = function () use ($domainSlug, $componentKey) {
@@ -61,6 +64,7 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
 
         try {
             $callback();
+
             return true;
         } finally {
             try {
@@ -78,6 +82,7 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         if (method_exists($this->cache, 'restoreLock')) {
             try {
                 $this->cache->restoreLock($lockKey, '')->forceRelease();
+
                 return true;
             } catch (Throwable) {
                 // Fallback to cache forget
@@ -92,12 +97,11 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         $lockKey = $this->formatLockKey($domainSlug, $componentKey);
 
         try {
-            $lock = method_exists($this->cache, 'lock')
-                ? $this->cache->lock($lockKey, 1)
-                : $this->cache->getStore()->lock($lockKey, 1);
+            $lock = $this->createLock($lockKey, 1);
 
             if ($lock->get()) {
                 $lock->release();
+
                 return false;
             }
 
@@ -105,6 +109,22 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         } catch (Throwable) {
             return false;
         }
+    }
+
+    private function createLock(string $lockKey, int $ttlSeconds): Lock
+    {
+        if (method_exists($this->cache, 'lock')) {
+            /** @var Lock */
+            return $this->cache->lock($lockKey, $ttlSeconds);
+        }
+
+        $store = $this->cache->getStore();
+        if ($store instanceof LockProvider || method_exists($store, 'lock')) {
+            /** @var Lock */
+            return $store->lock($lockKey, $ttlSeconds);
+        }
+
+        throw new LockAcquisitionException('Cache store does not support atomic locks.');
     }
 
     private function formatLockKey(string $domainSlug, string $componentKey): string

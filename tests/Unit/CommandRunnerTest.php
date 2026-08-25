@@ -10,6 +10,7 @@ use AlexKassel\DomainCore\DTOs\CommandOptionsDTO;
 use AlexKassel\DomainCore\DTOs\DomainProfile;
 use AlexKassel\DomainCore\Enums\ExecutionStatus;
 use AlexKassel\DomainCore\Events\CommandExecutionFailed;
+use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
 use AlexKassel\DomainCore\Tests\TestCase;
 use Illuminate\Support\Facades\Event;
 use RuntimeException;
@@ -17,6 +18,7 @@ use RuntimeException;
 final class CommandRunnerTest extends TestCase
 {
     private CommandRunnerInterface $runner;
+
     private DomainRegistryInterface $registry;
 
     protected function setUp(): void
@@ -30,7 +32,7 @@ final class CommandRunnerTest extends TestCase
         $this->registry->registerDomain('domain-c', 'Domain C');
     }
 
-    public function testParsesCliOptions(): void
+    public function test_parses_cli_options(): void
     {
         $options = $this->runner->parseCliOptions([
             'all' => true,
@@ -49,7 +51,7 @@ final class CommandRunnerTest extends TestCase
         self::assertFalse($options->dryRun);
     }
 
-    public function testResolvesTargetDomains(): void
+    public function test_resolves_target_domains(): void
     {
         $options = new CommandOptionsDTO(
             all: false,
@@ -63,21 +65,21 @@ final class CommandRunnerTest extends TestCase
         self::assertSame('domain-a', $targets[0]->slug);
     }
 
-    public function testThrowsDomainNotFoundExceptionWhenTargetDomainNotRegistered(): void
+    public function test_throws_domain_not_found_exception_when_target_domain_not_registered(): void
     {
         $options = new CommandOptionsDTO(
             all: false,
             domains: ['domain-a', 'unknown-domain-x']
         );
 
-        $this->expectException(\AlexKassel\DomainCore\Exceptions\DomainNotFoundException::class);
+        $this->expectException(DomainNotFoundException::class);
         $this->runner->resolveTargetDomains($options);
     }
 
-    public function testExecutesDomainWithReport(): void
+    public function test_executes_domain_with_report(): void
     {
         $domain = $this->registry->getDomain('domain-a');
-        $options = new CommandOptionsDTO();
+        $options = new CommandOptionsDTO;
 
         $report = $this->runner->executeDomain($domain, 'runner-one', function (DomainProfile $d) {
             return 42;
@@ -90,14 +92,14 @@ final class CommandRunnerTest extends TestCase
         self::assertSame(42, $report->itemsProcessed);
     }
 
-    public function testDispatchesCommandExecutionFailedEventOnFailure(): void
+    public function test_dispatches_command_execution_failed_event_on_failure(): void
     {
         Event::fake([CommandExecutionFailed::class]);
         $this->app->forgetInstance(CommandRunnerInterface::class);
         $runner = $this->app->make(CommandRunnerInterface::class);
 
         $domain = $this->registry->getDomain('domain-a');
-        $options = new CommandOptionsDTO();
+        $options = new CommandOptionsDTO;
 
         $report = $runner->executeDomain($domain, 'failing-task', function () {
             throw new RuntimeException('Intentional domain logic error');

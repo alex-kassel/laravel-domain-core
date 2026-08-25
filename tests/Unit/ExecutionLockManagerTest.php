@@ -22,7 +22,7 @@ final class ExecutionLockManagerTest extends TestCase
         );
     }
 
-    public function testExecutesCallbackWithLock(): void
+    public function test_executes_callback_with_lock(): void
     {
         $executed = false;
 
@@ -36,13 +36,13 @@ final class ExecutionLockManagerTest extends TestCase
         self::assertFalse($this->lockManager->isLocked('domain-one', 'runner'));
     }
 
-    public function testReleaseLockAllowsSubsequentExecution(): void
+    public function test_release_lock_allows_subsequent_execution(): void
     {
         $this->lockManager->releaseLock('domain-one', 'runner');
         self::assertFalse($this->lockManager->isLocked('domain-one', 'runner'));
     }
 
-    public function testDoesNotMaskCallbackExceptionsAndReleasesLockOnFailure(): void
+    public function test_does_not_mask_callback_exceptions_and_releases_lock_on_failure(): void
     {
         $caught = false;
         try {
