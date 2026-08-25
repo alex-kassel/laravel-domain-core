@@ -29,6 +29,12 @@ final class DomainRegistry implements DomainRegistryInterface
     {
         $slug = trim($slug);
 
+        if ($slug === '' || !preg_match('/^[a-z0-9\-_]+$/i', $slug)) {
+            throw new \InvalidArgumentException(
+                "Invalid domain slug '{$slug}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
+            );
+        }
+
         if (!isset($this->domains[$slug])) {
             $this->domains[$slug] = new DomainProfile(
                 slug: $slug,
@@ -68,13 +74,20 @@ final class DomainRegistry implements DomainRegistryInterface
             );
         }
 
-        $this->contextIdentityMap[$identityKey] = $context->domainSlug;
-
         // 3. Deduplication / Merge with existing context if present
         $profile = $this->domains[$context->domainSlug];
         $existing = $profile->getContext($context->contextSlug);
 
         if ($existing !== null) {
+            if ($existing->connectionName !== $context->connectionName || $existing->tablePrefix !== $context->tablePrefix) {
+                throw StorageContextCollisionException::forCollision(
+                    newDomainSlug: $context->domainSlug,
+                    existingDomainSlug: $context->domainSlug,
+                    connectionName: $context->connectionName,
+                    tablePrefix: $context->tablePrefix
+                );
+            }
+
             $mergedPaths = array_values(array_unique(array_merge($existing->migrationPaths, $context->migrationPaths)));
             $mergedOptions = array_merge($existing->extraOptions, $context->extraOptions);
 
@@ -90,6 +103,7 @@ final class DomainRegistry implements DomainRegistryInterface
 
             $profile->addContext($mergedContext);
         } else {
+            $this->contextIdentityMap[$identityKey] = $context->domainSlug;
             $profile->addContext($context);
         }
     }
@@ -113,12 +127,12 @@ final class DomainRegistry implements DomainRegistryInterface
         return $this->domains;
     }
 
-    public function hasStorageContext(string $domainSlug, string $contextSlug = 'default'): bool
+    public function hasStorageContext(string $domainSlug, string $contextSlug): bool
     {
         return isset($this->domains[$domainSlug]) && $this->domains[$domainSlug]->hasContext($contextSlug);
     }
 
-    public function getStorageContext(string $domainSlug, string $contextSlug = 'default'): StorageContext
+    public function getStorageContext(string $domainSlug, string $contextSlug): StorageContext
     {
         $domain = $this->getDomain($domainSlug);
         $context = $domain->getContext($contextSlug);
