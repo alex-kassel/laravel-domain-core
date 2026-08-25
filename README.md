@@ -1,13 +1,26 @@
-# Laravel Domain Core
+<div align="center">
 
-[![Audited by Laravel Package Audit](https://img.shields.io/badge/Audited%20by-Laravel%20Package%20Audit-10b981?style=for-the-badge&logo=shield)](RELEASE-GATE.md)
-[![Latest Version](https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core?style=for-the-badge&logo=packagist&logoColor=white&color=f59e0b)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![PHPStan](https://img.shields.io/badge/PHPStan-Level%208-8b5cf6?style=for-the-badge&logo=php&logoColor=white)](RELEASE-GATE.md)
-[![PHP](https://img.shields.io/packagist/dependency-v/alex-kassel/laravel-domain-core/php?style=for-the-badge&logo=php&logoColor=white&color=777bb4)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![Downloads](https://img.shields.io/packagist/dt/alex-kassel/laravel-domain-core?style=for-the-badge&logo=packagist&logoColor=white&color=0284c7)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![License](https://img.shields.io/github/license/alex-kassel/laravel-domain-core?style=for-the-badge&color=0d9488)](LICENSE)
+# 🏛️ Laravel Domain Core
 
-A high-cohesion, enterprise platform foundation for Laravel applications. `alex-kassel/laravel-domain-core` unifies **Polyglot Domain & Storage Context Registration**, **Dynamic Multi-Database & S3/Filesystem/Redis Provisioning**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, and **Distributed Lock Management**.
+### Polyglot domain storage contexts, dynamic multi-database provisioning, and ambient execution scoping
+
+[Installation](#installation) • [Storage Contexts](#1-registering-domain-storage-contexts) • [Ambient Scopes](#2-ambient-execution-scopes) • [Commands](#commands) • [Release Gate](RELEASE-GATE.md) • [Changelog](CHANGELOG.md)
+
+<br>
+
+<p align="center">
+  <a href="RELEASE-GATE.md"><img src="https://img.shields.io/badge/Audit-Verified-10b981?logo=shield" alt="Audit Verified"></a>
+  <a href="https://packagist.org/packages/alex-kassel/laravel-domain-core"><img src="https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core?color=f59e0b&logo=packagist&logoColor=white" alt="Latest Version"></a>
+  <a href="https://laravel.com"><img src="https://img.shields.io/badge/Laravel-11%20%7C%2012%20%7C%2013-ff2d20?logo=laravel&logoColor=white" alt="Laravel Support"></a>
+  <a href="https://php.net"><img src="https://img.shields.io/badge/PHP-8.2+-777bb4?logo=php&logoColor=white" alt="PHP Support"></a>
+  <a href="RELEASE-GATE.md"><img src="https://img.shields.io/badge/PHPStan-Level%20Max-8b5cf6?logo=php&logoColor=white" alt="PHPStan Level Max"></a>
+</p>
+
+</div>
+
+---
+
+**Laravel Domain Core** is a high-cohesion platform foundation for modular Laravel applications. It unifies **Polyglot Domain & Storage Context Registration**, **Dynamic Multi-Database & S3/Filesystem/Redis Provisioning**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, and **Distributed Lock Management**.
 
 It introduces a clean architectural separation between **Logical Business Contexts** (`StorageContext`) and **Physical Storage Mediums** (`StorageInterface`):
 
@@ -21,22 +34,22 @@ Domain Profile (e.g., 'automotive-leasing')
 
 ---
 
-## Features
+## Key Features
 
-- **Polyglot Persistence Support:** Register and manage relational databases (MySQL, PostgreSQL, SQLite), object storage/filesystems (Local, S3, MinIO), and in-memory caches (Redis) under a unified domain model.
-- **First-Class IDE Autocomplete & Type Safety:** Strongly-typed Enum `StorageDriverType`, dedicated named constructors (`StorageContext::database()`, `::filesystem()`, `::redis()`), and downcasting helpers (`$context->asDatabase()`, `$context->asFilesystem()`).
-- **Context-Aware Eloquent Models & Hijacking Protection:** Automatically route database connections and table prefixes at runtime; statically bound models cannot be hijacked by outer ambient scopes.
-- **Isolated Multi-Context Migrations:** Filter database-backed contexts automatically and safely drop only domain-prefixed tables on shared connections via `domain:migrate --fresh`.
-- **Standardized Operator CLI DX & Distributed Locks:** Uniform Artisan command flags (`--all`, `--domains`, `--context`, `--force`, `--dry-run`, `--lock-ttl`) with robust lock management and POSIX signal handling (`SIGTERM`, `SIGINT`).
-- **Actionable Diagnostics:** Structured `[PROBLEM]`, `[CAUSE]`, and `[RESOLUTION]` exceptions paired with diagnostic events (`StorageConnectionMissing`, `CommandExecutionFailed`, `LockAcquisitionFailed`).
-- **Domain Package Scaffolding:** CLI generator (`domain:make-domain`) for standardized domain package skeletons.
+* **Polyglot Persistence Support:** Register and manage relational databases (MySQL, PostgreSQL, SQLite), object storage/filesystems (Local, S3, MinIO), and in-memory caches (Redis) under a unified domain model.
+* **First-Class IDE Autocomplete & Type Safety:** Strongly-typed Enum `StorageDriverType`, dedicated named constructors (`StorageContext::database()`, `::filesystem()`, `::redis()`), and downcasting helpers (`$context->asDatabase()`, `$context->asFilesystem()`).
+* **Context-Aware Eloquent Models & Hijacking Protection:** Automatically route database connections and table prefixes at runtime; statically bound models cannot be hijacked by outer ambient scopes.
+* **Isolated Multi-Context Migrations:** Filter database-backed contexts automatically and safely drop only domain-prefixed tables on shared connections via `domain:migrate --fresh`.
+* **Standardized Operator CLI DX & Distributed Locks:** Uniform Artisan command flags (`--all`, `--domains`, `--context`, `--force`, `--dry-run`, `--lock-ttl`) with robust lock management and POSIX signal handling (`SIGTERM`, `SIGINT`).
+* **Actionable Diagnostics:** Structured `[PROBLEM]`, `[CAUSE]`, and `[RESOLUTION]` exceptions paired with diagnostic events (`StorageConnectionMissing`, `CommandExecutionFailed`, `LockAcquisitionFailed`).
+* **Domain Package Scaffolding:** CLI generator (`domain:make-domain`) for standardized domain package skeletons.
 
 ---
 
 ## Requirements
 
-- PHP 8.2+
-- Laravel 11.x, 12.x, or 13.x
+* **PHP:** 8.2+ (tested on 8.2, 8.3, 8.4)
+* **Laravel Framework:** 11.x | 12.x | 13.x
 
 ---
 
@@ -221,12 +234,10 @@ All package commands are grouped under the `domain:` namespace:
 
 ## Testing
 
-Run the full package test suite:
+Run unit and integration test suites:
 
 ```bash
-composer test
-# or
-vendor/bin/phpunit
+php artisan test -c packages/alex-kassel/laravel-domain-core/phpunit.xml
 ```
 
 ---
