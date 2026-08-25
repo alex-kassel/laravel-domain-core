@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AlexKassel\DomainCore\Database\Traits;
 
 use AlexKassel\DomainCore\DTOs\StorageContext;
+use AlexKassel\DomainCore\Exceptions\NoActiveStorageContextException;
 use AlexKassel\DomainCore\Facades\DomainContext;
 use AlexKassel\DomainCore\Facades\DomainRegistry;
 
@@ -18,6 +19,7 @@ trait HasDomainContextTrait
 
     /**
      * Optional explicit domain slug (e.g. 'domain-one') if this model is bound statically.
+     * Static domain binding has absolute priority over ambient execution scopes.
      */
     protected ?string $explicitDomain = null;
 
@@ -27,9 +29,9 @@ trait HasDomainContextTrait
     protected ?string $baseTable = null;
 
     /**
-     * Cached resolved table name for this instance.
+     * Whether to require an active domain context and forbid silent fallback to root connection.
      */
-    private ?string $resolvedTableCache = null;
+    protected bool $strictDomainContext = true;
 
     public function getConnectionName(): ?string
     {
@@ -39,49 +41,56 @@ trait HasDomainContextTrait
             return $context->connectionName;
         }
 
+        if ($this->strictDomainContext) {
+            throw NoActiveStorageContextException::create();
+        }
+
         return parent::getConnectionName();
     }
 
     public function getTable(): string
     {
-        if ($this->resolvedTableCache !== null) {
-            return $this->resolvedTableCache;
-        }
-
         $base = $this->baseTable ?? parent::getTable();
         $context = $this->resolveStorageContextForModel();
 
         if ($context !== null && $context->tablePrefix !== '') {
             $connectionPrefix = (string) config("database.connections.{$context->connectionName}.prefix", '');
-            if ($connectionPrefix === '' && !str_starts_with($base, $context->tablePrefix)) {
-                $this->resolvedTableCache = $context->tablePrefix . $base;
-                return $this->resolvedTableCache;
+            if ($connectionPrefix === '') {
+                return $context->tablePrefix . $base;
             }
         }
 
-        $this->resolvedTableCache = $base;
-        return $this->resolvedTableCache;
+        return $base;
     }
 
     public function setTable($table): static
     {
-        $this->resolvedTableCache = null;
         return parent::setTable($table);
     }
 
     protected function resolveStorageContextForModel(): ?StorageContext
     {
-        $ambient = DomainContext::currentOrNull();
+        // 1. Explicit domain static binding has absolute priority over ambient scopes
+        if ($this->explicitDomain !== null) {
+            if ($this->explicitContext !== null) {
+                return DomainRegistry::getStorageContext($this->explicitDomain, $this->explicitContext);
+            }
 
+            $ambient = DomainContext::currentOrNull();
+            if ($ambient !== null && $ambient->domainSlug === $this->explicitDomain) {
+                return $ambient;
+            }
+
+            return null;
+        }
+
+        // 2. Ambient execution scope resolution
+        $ambient = DomainContext::currentOrNull();
         if ($ambient !== null) {
             if ($this->explicitContext !== null && $this->explicitContext !== $ambient->contextSlug) {
                 return DomainRegistry::getStorageContext($ambient->domainSlug, $this->explicitContext);
             }
             return $ambient;
-        }
-
-        if ($this->explicitDomain !== null && $this->explicitContext !== null) {
-            return DomainRegistry::getStorageContext($this->explicitDomain, $this->explicitContext);
         }
 
         return null;
