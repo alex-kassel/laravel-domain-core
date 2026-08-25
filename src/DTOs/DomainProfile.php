@@ -60,6 +60,24 @@ final class DomainProfile
         return $this->contexts[$contextSlug] ?? null;
     }
 
+    public function getDatabaseContext(string $contextSlug): ?StorageContext
+    {
+        $context = $this->getContext($contextSlug);
+        return ($context !== null && $context->isDatabase()) ? $context : null;
+    }
+
+    public function getFilesystemContext(string $contextSlug): ?StorageContext
+    {
+        $context = $this->getContext($contextSlug);
+        return ($context !== null && $context->isFilesystem()) ? $context : null;
+    }
+
+    public function getRedisContext(string $contextSlug): ?StorageContext
+    {
+        $context = $this->getContext($contextSlug);
+        return ($context !== null && $context->isRedis()) ? $context : null;
+    }
+
     public function hasContext(string $contextSlug): bool
     {
         return isset($this->contexts[$contextSlug]);

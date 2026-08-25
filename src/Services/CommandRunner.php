@@ -13,6 +13,7 @@ use AlexKassel\DomainCore\DTOs\DomainProfile;
 use AlexKassel\DomainCore\Enums\ExecutionStatus;
 use AlexKassel\DomainCore\Events\CommandExecutionFailed;
 use AlexKassel\DomainCore\Events\CommandRunSkippedDueToOverlap;
+use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
 use Closure;
 use Illuminate\Contracts\Events\Dispatcher;
 use Throwable;

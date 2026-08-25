@@ -11,6 +11,7 @@ use AlexKassel\DomainCore\DTOs\MigrationReport;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Enums\MigrationStatus;
 use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
+use AlexKassel\DomainCore\Exceptions\IncompatibleStorageException;
 use AlexKassel\DomainCore\Exceptions\MigrationExecutionException;
 use AlexKassel\DomainCore\Exceptions\StorageContextNotFoundException;
 use Illuminate\Contracts\Foundation\Application;
@@ -107,13 +108,25 @@ final class MigrationManager implements MigrationManagerInterface
             throw DomainNotFoundException::forSlug($domainSlug);
         }
 
-        if ($domainSlug !== null && $contextSlug !== null && !$this->registry->hasStorageContext($domainSlug, $contextSlug)) {
-            throw StorageContextNotFoundException::forContext($domainSlug, $contextSlug);
+        if ($domainSlug !== null && $contextSlug !== null) {
+            $context = $this->registry->getStorageContext($domainSlug, $contextSlug);
+            if (!$context->isDatabase()) {
+                throw IncompatibleStorageException::forTypeMismatch(
+                    $domainSlug,
+                    $contextSlug,
+                    $context->storage->getDriverType(),
+                    'Database'
+                );
+            }
+            return [$context];
         }
 
         $all = $this->registry->allStorageContexts();
 
         return array_values(array_filter($all, static function (StorageContext $context) use ($domainSlug, $contextSlug) {
+            if (!$context->isDatabase()) {
+                return false; // Skip non-relational storages (FileStorage, RedisStorage) from automated migrations
+            }
             if ($domainSlug !== null && $context->domainSlug !== $domainSlug) {
                 return false;
             }
@@ -127,11 +140,12 @@ final class MigrationManager implements MigrationManagerInterface
     private function migrateContext(StorageContext $context, bool $force, bool $pretend): MigrationReport
     {
         $startTime = microtime(true);
+        $db = $context->asDatabase();
 
         try {
             $this->ensureDatabaseExists($context);
 
-            foreach ($context->migrationPaths as $path) {
+            foreach ($db->migrationPaths as $path) {
                 if (!$this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
@@ -152,12 +166,12 @@ final class MigrationManager implements MigrationManagerInterface
             $ran = $this->contextManager->using(
                 $context->domainSlug,
                 $context->contextSlug,
-                function () use ($migrator, $context, $force, $pretend) {
-                    if (empty($context->migrationPaths)) {
+                function () use ($migrator, $db, $force, $pretend) {
+                    if (empty($db->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->run($context->migrationPaths, ['pretend' => $pretend, 'step' => false]);
+                    return $migrator->run($db->migrationPaths, ['pretend' => $pretend, 'step' => false]);
                 }
             );
 
@@ -166,7 +180,7 @@ final class MigrationManager implements MigrationManagerInterface
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: is_array($ran) ? array_map('strval', $ran) : [],
                 durationSeconds: $duration,
                 status: MigrationStatus::SUCCESS
@@ -177,7 +191,7 @@ final class MigrationManager implements MigrationManagerInterface
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: [],
                 durationSeconds: $duration,
                 status: MigrationStatus::FAILED,
@@ -189,11 +203,12 @@ final class MigrationManager implements MigrationManagerInterface
     private function rollbackContext(StorageContext $context, int $step, bool $force): MigrationReport
     {
         $startTime = microtime(true);
+        $db = $context->asDatabase();
 
         try {
             $this->ensureDatabaseExists($context);
 
-            foreach ($context->migrationPaths as $path) {
+            foreach ($db->migrationPaths as $path) {
                 if (!$this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
@@ -209,7 +224,7 @@ final class MigrationManager implements MigrationManagerInterface
                 return new MigrationReport(
                     domainSlug: $context->domainSlug,
                     contextSlug: $context->contextSlug,
-                    connectionName: $context->connectionName,
+                    connectionName: $db->connectionName,
                     executedMigrations: [],
                     durationSeconds: round(microtime(true) - $startTime, 4),
                     status: MigrationStatus::NO_OP
@@ -219,19 +234,19 @@ final class MigrationManager implements MigrationManagerInterface
             $rolledBack = $this->contextManager->using(
                 $context->domainSlug,
                 $context->contextSlug,
-                function () use ($migrator, $context, $step) {
-                    if (empty($context->migrationPaths)) {
+                function () use ($migrator, $db, $step) {
+                    if (empty($db->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->rollback($context->migrationPaths, ['step' => $step]);
+                    return $migrator->rollback($db->migrationPaths, ['step' => $step]);
                 }
             );
 
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::SUCCESS
@@ -240,7 +255,7 @@ final class MigrationManager implements MigrationManagerInterface
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: [],
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::FAILED,
@@ -252,11 +267,12 @@ final class MigrationManager implements MigrationManagerInterface
     private function resetContext(StorageContext $context, bool $force): MigrationReport
     {
         $startTime = microtime(true);
+        $db = $context->asDatabase();
 
         try {
             $this->ensureDatabaseExists($context);
 
-            foreach ($context->migrationPaths as $path) {
+            foreach ($db->migrationPaths as $path) {
                 if (!$this->files->isDirectory($path)) {
                     throw MigrationExecutionException::forContext(
                         $context->domainSlug,
@@ -272,7 +288,7 @@ final class MigrationManager implements MigrationManagerInterface
                 return new MigrationReport(
                     domainSlug: $context->domainSlug,
                     contextSlug: $context->contextSlug,
-                    connectionName: $context->connectionName,
+                    connectionName: $db->connectionName,
                     executedMigrations: [],
                     durationSeconds: round(microtime(true) - $startTime, 4),
                     status: MigrationStatus::NO_OP
@@ -282,19 +298,19 @@ final class MigrationManager implements MigrationManagerInterface
             $rolledBack = $this->contextManager->using(
                 $context->domainSlug,
                 $context->contextSlug,
-                function () use ($migrator, $context) {
-                    if (empty($context->migrationPaths)) {
+                function () use ($migrator, $db) {
+                    if (empty($db->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->reset($context->migrationPaths);
+                    return $migrator->reset($db->migrationPaths);
                 }
             );
 
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::SUCCESS
@@ -303,7 +319,7 @@ final class MigrationManager implements MigrationManagerInterface
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
+                connectionName: $db->connectionName,
                 executedMigrations: [],
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::FAILED,
@@ -315,12 +331,13 @@ final class MigrationManager implements MigrationManagerInterface
     private function dropAllTablesForContext(StorageContext $context): void
     {
         $this->ensureDatabaseExists($context);
+        $db = $context->asDatabase();
 
-        if ($context->tablePrefix !== '') {
-            $connection = $this->app->make('db')->connection($context->connectionName);
-            $schema = Schema::connection($context->connectionName);
+        if ($db->tablePrefix !== '') {
+            $connection = $this->app->make('db')->connection($db->connectionName);
+            $schema = Schema::connection($db->connectionName);
             $tables = $schema->getTableListing();
-            $contextTables = array_filter($tables, static fn(string $tbl) => str_starts_with($tbl, $context->tablePrefix));
+            $contextTables = array_filter($tables, static fn(string $tbl) => str_starts_with($tbl, $db->tablePrefix));
 
             if (!empty($contextTables)) {
                 $driver = $connection->getDriverName();
@@ -345,21 +362,22 @@ final class MigrationManager implements MigrationManagerInterface
             return;
         }
 
-        Schema::connection($context->connectionName)->dropAllTables();
-        Schema::connection($context->connectionName)->dropAllViews();
+        Schema::connection($db->connectionName)->dropAllTables();
+        Schema::connection($db->connectionName)->dropAllViews();
     }
 
     private function createMigratorForContext(StorageContext $context): Migrator
     {
-        $table = $context->tablePrefix !== ''
-            ? "{$context->tablePrefix}migrations"
+        $db = $context->asDatabase();
+        $table = $db->tablePrefix !== ''
+            ? "{$db->tablePrefix}migrations"
             : "migrations_{$context->domainSlug}_{$context->contextSlug}";
 
         $repository = new DatabaseMigrationRepository($this->app->make('db'), $table);
-        $repository->setSource($context->connectionName);
+        $repository->setSource($db->connectionName);
 
         $migrator = new Migrator($repository, $this->app->make('db'), $this->files, $this->app->make('events'));
-        $migrator->setConnection($context->connectionName);
+        $migrator->setConnection($db->connectionName);
 
         return $migrator;
     }

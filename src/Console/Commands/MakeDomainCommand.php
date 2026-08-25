@@ -124,7 +124,7 @@ final class {$studlyDomain}ServiceProvider extends ServiceProvider
         );
 
         foreach (\$config['contexts'] ?? [] as \$contextSlug => \$settings) {
-            \$registry->registerStorageContext(new StorageContext(
+            \$registry->registerStorageContext(StorageContext::database(
                 domainSlug: '{$domain}',
                 contextSlug: \$contextSlug,
                 connectionName: \$settings['connection'] ?? 'sqlite_{$domain}_{\$contextSlug}',

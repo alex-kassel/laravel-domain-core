@@ -87,6 +87,27 @@ final class DomainContextManager implements DomainContextManagerInterface
         $this->manualContext = null;
     }
 
+    public function database(): \AlexKassel\DomainCore\Storage\DatabaseStorage
+    {
+        return $this->current()->asDatabase();
+    }
+
+    public function filesystem(): \AlexKassel\DomainCore\Storage\FileStorage
+    {
+        return $this->current()->asFilesystem();
+    }
+
+    public function redis(): \AlexKassel\DomainCore\Storage\RedisStorage
+    {
+        return $this->current()->asRedis();
+    }
+
+    public function disk(): \Illuminate\Contracts\Filesystem\Filesystem
+    {
+        $fileStorage = $this->filesystem();
+        return \Illuminate\Support\Facades\Storage::disk($fileStorage->disk);
+    }
+
     private function pushContext(StorageContext $context): void
     {
         $this->provisioner->provision($context);

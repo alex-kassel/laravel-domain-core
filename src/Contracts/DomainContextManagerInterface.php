@@ -50,4 +50,27 @@ interface DomainContextManagerInterface
      * Clear the current active context stack.
      */
     public function clearCurrent(): void;
+
+    /**
+     * Get the DatabaseStorage of the current active context.
+     * Throws IncompatibleStorageException if the active context is not a database.
+     */
+    public function database(): \AlexKassel\DomainCore\Storage\DatabaseStorage;
+
+    /**
+     * Get the FileStorage of the current active context.
+     * Throws IncompatibleStorageException if the active context is not a filesystem.
+     */
+    public function filesystem(): \AlexKassel\DomainCore\Storage\FileStorage;
+
+    /**
+     * Get the RedisStorage of the current active context.
+     * Throws IncompatibleStorageException if the active context is not a redis backend.
+     */
+    public function redis(): \AlexKassel\DomainCore\Storage\RedisStorage;
+
+    /**
+     * Get a Laravel Filesystem adapter for the active filesystem storage context.
+     */
+    public function disk(): \Illuminate\Contracts\Filesystem\Filesystem;
 }

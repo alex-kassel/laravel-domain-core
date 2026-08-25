@@ -69,8 +69,8 @@ final class DomainRegistry implements DomainRegistryInterface
             throw StorageContextCollisionException::forCollision(
                 newDomainSlug: $context->domainSlug,
                 existingDomainSlug: $this->contextIdentityMap[$identityKey],
-                connectionName: $context->connectionName,
-                tablePrefix: $context->tablePrefix
+                connectionName: $context->isDatabase() ? $context->asDatabase()->connectionName : $identityKey,
+                tablePrefix: $context->isDatabase() ? $context->asDatabase()->tablePrefix : ''
             );
         }
 
@@ -79,29 +79,40 @@ final class DomainRegistry implements DomainRegistryInterface
         $existing = $profile->getContext($context->contextSlug);
 
         if ($existing !== null) {
-            if ($existing->connectionName !== $context->connectionName || $existing->tablePrefix !== $context->tablePrefix) {
+            if ($existing->storage->getDriverType() !== $context->storage->getDriverType() || $existing->getIdentityKey() !== $context->getIdentityKey()) {
                 throw StorageContextCollisionException::forCollision(
                     newDomainSlug: $context->domainSlug,
                     existingDomainSlug: $context->domainSlug,
-                    connectionName: $context->connectionName,
-                    tablePrefix: $context->tablePrefix
+                    connectionName: $context->isDatabase() ? $context->asDatabase()->connectionName : $identityKey,
+                    tablePrefix: $context->isDatabase() ? $context->asDatabase()->tablePrefix : ''
                 );
             }
 
-            $mergedPaths = array_values(array_unique(array_merge($existing->migrationPaths, $context->migrationPaths)));
-            $mergedOptions = array_merge($existing->extraOptions, $context->extraOptions);
+            if ($context->isDatabase() && $existing->isDatabase()) {
+                $dbExisting = $existing->asDatabase();
+                $dbNew = $context->asDatabase();
+                $mergedPaths = array_values(array_unique(array_merge($dbExisting->migrationPaths, $dbNew->migrationPaths)));
+                $mergedOptions = array_merge($existing->extraOptions, $context->extraOptions);
 
-            $mergedContext = new StorageContext(
-                domainSlug: $context->domainSlug,
-                contextSlug: $context->contextSlug,
-                connectionName: $context->connectionName,
-                tablePrefix: $context->tablePrefix,
-                migrationPaths: $mergedPaths,
-                autoCreateSqliteDatabase: $context->autoCreateSqliteDatabase || $existing->autoCreateSqliteDatabase,
-                extraOptions: $mergedOptions,
-            );
-
-            $profile->addContext($mergedContext);
+                $mergedContext = StorageContext::database(
+                    domainSlug: $context->domainSlug,
+                    contextSlug: $context->contextSlug,
+                    connectionName: $dbNew->connectionName,
+                    tablePrefix: $dbNew->tablePrefix,
+                    migrationPaths: $mergedPaths,
+                    autoCreateSqliteDatabase: $dbNew->autoCreateSqliteDatabase || $dbExisting->autoCreateSqliteDatabase,
+                    extraOptions: $mergedOptions,
+                );
+                $profile->addContext($mergedContext);
+            } else {
+                $mergedOptions = array_merge($existing->extraOptions, $context->extraOptions);
+                $profile->addContext(new StorageContext(
+                    domainSlug: $context->domainSlug,
+                    contextSlug: $context->contextSlug,
+                    storage: $context->storage,
+                    extraOptions: $mergedOptions
+                ));
+            }
         } else {
             $this->contextIdentityMap[$identityKey] = $context->domainSlug;
             $profile->addContext($context);

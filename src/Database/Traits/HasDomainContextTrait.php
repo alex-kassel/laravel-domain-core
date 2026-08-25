@@ -38,7 +38,7 @@ trait HasDomainContextTrait
         $context = $this->resolveStorageContextForModel();
 
         if ($context !== null) {
-            return $context->connectionName;
+            return $context->asDatabase()->connectionName;
         }
 
         if ($this->strictDomainContext) {
@@ -53,10 +53,13 @@ trait HasDomainContextTrait
         $base = $this->baseTable ?? parent::getTable();
         $context = $this->resolveStorageContextForModel();
 
-        if ($context !== null && $context->tablePrefix !== '') {
-            $connectionPrefix = (string) config("database.connections.{$context->connectionName}.prefix", '');
-            if ($connectionPrefix === '') {
-                return $context->tablePrefix . $base;
+        if ($context !== null) {
+            $db = $context->asDatabase();
+            if ($db->tablePrefix !== '') {
+                $connectionPrefix = (string) config("database.connections.{$db->connectionName}.prefix", '');
+                if ($connectionPrefix === '') {
+                    return $db->tablePrefix . $base;
+                }
             }
         }
 

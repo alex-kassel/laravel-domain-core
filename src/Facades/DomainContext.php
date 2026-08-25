@@ -17,6 +17,10 @@ use Illuminate\Support\Facades\Facade;
  * @method static ?StorageContext currentOrNull()
  * @method static bool hasCurrent()
  * @method static void clearCurrent()
+ * @method static \AlexKassel\DomainCore\Storage\DatabaseStorage database()
+ * @method static \AlexKassel\DomainCore\Storage\FileStorage filesystem()
+ * @method static \AlexKassel\DomainCore\Storage\RedisStorage redis()
+ * @method static \Illuminate\Contracts\Filesystem\Filesystem disk()
  *
  * @see \AlexKassel\DomainCore\Services\DomainContextManager
  */

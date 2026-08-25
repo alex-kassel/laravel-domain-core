@@ -22,15 +22,20 @@ final class DatabaseProvisioner
 
     public function provision(StorageContext $context): void
     {
-        $connectionConfig = config("database.connections.{$context->connectionName}");
+        if (!$context->isDatabase()) {
+            return; // Non-relational storage (e.g. FileStorage, RedisStorage) does not require DB connection provisioning
+        }
+
+        $db = $context->asDatabase();
+        $connectionConfig = config("database.connections.{$db->connectionName}");
 
         if ($connectionConfig === null) {
-            if (!$context->autoCreateSqliteDatabase) {
-                $suggestedAction = "Define database connection '{$context->connectionName}' in config/database.php or enable autoCreateSqliteDatabase: true in StorageContext.";
+            if (!$db->autoCreateSqliteDatabase) {
+                $suggestedAction = "Define database connection '{$db->connectionName}' in config/database.php or enable autoCreateSqliteDatabase: true in StorageContext.";
                 $this->events->dispatch(new StorageConnectionMissing(
                     domainSlug: $context->domainSlug,
                     contextSlug: $context->contextSlug,
-                    connectionName: $context->connectionName,
+                    connectionName: $db->connectionName,
                     autoCreateSqliteDatabase: false,
                     suggestedAction: $suggestedAction,
                 ));
@@ -38,31 +43,31 @@ final class DatabaseProvisioner
                 throw StorageConnectionNotFoundException::forConnection(
                     $context->domainSlug,
                     $context->contextSlug,
-                    $context->connectionName
+                    $db->connectionName
                 );
             }
 
             $dbPath = database_path("{$context->domainSlug}_{$context->contextSlug}.sqlite");
             config([
-                "database.connections.{$context->connectionName}" => [
+                "database.connections.{$db->connectionName}" => [
                     'driver' => 'sqlite',
                     'database' => $dbPath,
-                    'prefix' => $context->tablePrefix,
+                    'prefix' => $db->tablePrefix,
                     'foreign_key_constraints' => true,
                     'busy_timeout' => 5000,
                     'journal_mode' => 'WAL',
                 ],
             ]);
 
-            DB::purge($context->connectionName);
-            $this->ensureSqliteFileExists($dbPath, $context->connectionName);
+            DB::purge($db->connectionName);
+            $this->ensureSqliteFileExists($dbPath, $db->connectionName);
             return;
         }
 
         if (($connectionConfig['driver'] ?? null) === 'sqlite') {
             $dbPath = $connectionConfig['database'] ?? null;
-            if ($dbPath !== null && $context->autoCreateSqliteDatabase) {
-                $this->ensureSqliteFileExists($dbPath, $context->connectionName);
+            if ($dbPath !== null && $db->autoCreateSqliteDatabase) {
+                $this->ensureSqliteFileExists($dbPath, $db->connectionName);
             }
         }
     }

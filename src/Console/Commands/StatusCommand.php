@@ -65,13 +65,37 @@ final class StatusCommand extends Command
                     continue;
                 }
 
+                $driverName = ucfirst($context->storage->getDriverType()->value);
+
+                if ($context->isDatabase()) {
+                    $db = $context->asDatabase();
+                    $target = $db->connectionName;
+                    $prefixOrPath = $db->tablePrefix !== '' ? $db->tablePrefix : '<comment>(none)</comment>';
+                    $migrationsCount = (string) count($db->migrationPaths);
+                } elseif ($context->isFilesystem()) {
+                    $fs = $context->asFilesystem();
+                    $target = "disk: {$fs->disk}";
+                    $prefixOrPath = $fs->basePath !== '' ? "path: {$fs->basePath}" : '<comment>(root)</comment>';
+                    $migrationsCount = '-';
+                } elseif ($context->isRedis()) {
+                    $redis = $context->asRedis();
+                    $target = "conn: {$redis->connection}";
+                    $prefixOrPath = $redis->keyPrefix !== '' ? "prefix: {$redis->keyPrefix}" : '<comment>(none)</comment>';
+                    $migrationsCount = '-';
+                } else {
+                    $target = '-';
+                    $prefixOrPath = '-';
+                    $migrationsCount = '-';
+                }
+
                 $rows[] = [
                     $domain->slug,
                     $domain->name,
                     "<info>{$contextSlug}</info>",
-                    $context->connectionName,
-                    $context->tablePrefix !== '' ? $context->tablePrefix : '<comment>(none)</comment>',
-                    count($context->migrationPaths),
+                    $driverName,
+                    $target,
+                    $prefixOrPath,
+                    $migrationsCount,
                 ];
             }
         }
@@ -82,7 +106,7 @@ final class StatusCommand extends Command
         }
 
         $this->table(
-            ['Domain Slug', 'Domain Name', 'Context', 'Connection', 'Table Prefix', 'Migration Paths'],
+            ['Domain Slug', 'Domain Name', 'Context', 'Driver', 'Connection / Disk', 'Table Prefix / Path', 'Migrations'],
             $rows
         );
 
