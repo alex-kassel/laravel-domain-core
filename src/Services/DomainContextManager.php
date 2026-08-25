@@ -22,11 +22,12 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     public function __construct(
         private readonly DomainRegistryInterface $registry,
+        private readonly DatabaseProvisioner $provisioner,
     ) {}
 
-    public function using(string $domainSlug, string $capabilitySlug, Closure $callback): mixed
+    public function using(string $domainSlug, string $contextSlug, Closure $callback): mixed
     {
-        $context = $this->registry->getStorageContext($domainSlug, $capabilitySlug);
+        $context = $this->registry->getStorageContext($domainSlug, $contextSlug);
         $this->pushContext($context);
 
         try {
@@ -36,9 +37,9 @@ final class DomainContextManager implements DomainContextManagerInterface
         }
     }
 
-    public function setCurrent(string $domainSlug, string $capabilitySlug): StorageContext
+    public function setCurrent(string $domainSlug, string $contextSlug): StorageContext
     {
-        $context = $this->registry->getStorageContext($domainSlug, $capabilitySlug);
+        $context = $this->registry->getStorageContext($domainSlug, $contextSlug);
         $this->setCurrentContext($context);
 
         return $context;
@@ -46,6 +47,8 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     public function setCurrentContext(StorageContext $context): void
     {
+        $this->provisioner->provision($context);
+
         // Replace current top of stack or push
         if (!empty($this->contextStack)) {
             array_pop($this->contextStack);
@@ -86,6 +89,8 @@ final class DomainContextManager implements DomainContextManagerInterface
 
     private function pushContext(StorageContext $context): void
     {
+        $this->provisioner->provision($context);
+
         $this->contextStack[] = $context;
     }
 

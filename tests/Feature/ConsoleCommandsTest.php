@@ -15,20 +15,53 @@ final class ConsoleCommandsTest extends TestCase
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
 
-        $registry->registerDomain('car-sub', 'Car Subscription');
+        $registry->registerDomain('domain-one', 'Domain One');
         $registry->registerStorageContext(new StorageContext(
-            domainSlug: 'car-sub',
-            capabilitySlug: 'scraping',
-            connectionName: 'sqlite_raw',
-            tablePrefix: 'cs_raw_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_one_primary',
+            tablePrefix: 'one_primary_',
         ));
 
         $this->artisan('domain:status')
             ->assertSuccessful()
             ->expectsTable(
-                ['Domain Slug', 'Domain Name', 'Capability', 'Connection', 'Table Prefix', 'Migration Paths'],
+                ['Domain Slug', 'Domain Name', 'Context', 'Connection', 'Table Prefix', 'Migration Paths'],
                 [
-                    ['car-sub', 'Car Subscription', '<info>scraping</info>', 'sqlite_raw', 'cs_raw_', 0],
+                    ['domain-one', 'Domain One', '<info>primary</info>', 'sqlite_one_primary', 'one_primary_', 0],
+                ]
+            );
+    }
+
+    public function testDomainStatusWithCommaSeparatedDomains(): void
+    {
+        $registry = $this->app->make(DomainRegistryInterface::class);
+
+        $registry->registerDomain('domain-one', 'Domain One');
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_one_primary',
+            tablePrefix: 'one_primary_',
+        ));
+
+        $registry->registerDomain('domain-two', 'Domain Two');
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-two',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_two_primary',
+            tablePrefix: 'two_primary_',
+        ));
+
+        $registry->registerDomain('domain-three', 'Domain Three');
+
+        $this->artisan('domain:status --domains=domain-one,domain-two')
+            ->assertSuccessful()
+            ->expectsTable(
+                ['Domain Slug', 'Domain Name', 'Context', 'Connection', 'Table Prefix', 'Migration Paths'],
+                [
+                    ['domain-one', 'Domain One', '<info>primary</info>', 'sqlite_one_primary', 'one_primary_', 0],
+                    ['domain-two', 'Domain Two', '<info>primary</info>', 'sqlite_two_primary', 'two_primary_', 0],
                 ]
             );
     }
@@ -36,7 +69,7 @@ final class ConsoleCommandsTest extends TestCase
     public function testDomainCacheAndClearCommands(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
-        $registry->registerDomain('car-sub', 'Car Subscription');
+        $registry->registerDomain('domain-one', 'Domain One');
 
         $this->artisan('domain:cache')->assertSuccessful();
 

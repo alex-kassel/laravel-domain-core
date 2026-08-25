@@ -8,6 +8,8 @@ use AlexKassel\DomainCore\Contracts\DomainContextManagerInterface;
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Exceptions\NoActiveStorageContextException;
+use AlexKassel\DomainCore\Exceptions\StorageConnectionNotFoundException;
+use AlexKassel\DomainCore\Services\DatabaseProvisioner;
 use AlexKassel\DomainCore\Services\DomainContextManager;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Tests\TestCase;
@@ -21,20 +23,21 @@ final class DomainContextManagerTest extends TestCase
     {
         parent::setUp();
         $this->registry = new DomainRegistry();
-        $this->manager = new DomainContextManager($this->registry);
+        $provisioner = $this->app->make(DatabaseProvisioner::class);
+        $this->manager = new DomainContextManager($this->registry, $provisioner);
 
         $this->registry->registerStorageContext(new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
-            connectionName: 'sqlite_cs_raw',
-            tablePrefix: 'cs_raw_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_one_primary',
+            tablePrefix: 'one_primary_',
         ));
 
         $this->registry->registerStorageContext(new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'normalization',
-            connectionName: 'sqlite_cs_norm',
-            tablePrefix: 'cs_norm_',
+            domainSlug: 'domain-one',
+            contextSlug: 'archive',
+            connectionName: 'sqlite_one_archive',
+            tablePrefix: 'one_archive_',
         ));
     }
 
@@ -54,11 +57,11 @@ final class DomainContextManagerTest extends TestCase
     {
         self::assertFalse($this->manager->hasCurrent());
 
-        $executed = $this->manager->using('car-subscription', 'scraping', function (StorageContext $ctx) {
+        $executed = $this->manager->using('domain-one', 'primary', function (StorageContext $ctx) {
             self::assertTrue($this->manager->hasCurrent());
-            self::assertSame('car-subscription', $ctx->domainSlug);
-            self::assertSame('scraping', $ctx->capabilitySlug);
-            self::assertSame('cs_raw_', $this->manager->current()->tablePrefix);
+            self::assertSame('domain-one', $ctx->domainSlug);
+            self::assertSame('primary', $ctx->contextSlug);
+            self::assertSame('one_primary_', $this->manager->current()->tablePrefix);
 
             return 'result_123';
         });
@@ -69,16 +72,16 @@ final class DomainContextManagerTest extends TestCase
 
     public function testSupportsNestedScopesWithLIFORestoration(): void
     {
-        $this->manager->using('car-subscription', 'scraping', function () {
-            self::assertSame('scraping', $this->manager->current()->capabilitySlug);
+        $this->manager->using('domain-one', 'primary', function () {
+            self::assertSame('primary', $this->manager->current()->contextSlug);
 
             // Nested scope
-            $this->manager->using('car-subscription', 'normalization', function () {
-                self::assertSame('normalization', $this->manager->current()->capabilitySlug);
+            $this->manager->using('domain-one', 'archive', function () {
+                self::assertSame('archive', $this->manager->current()->contextSlug);
             });
 
             // Restored back to outer scope
-            self::assertSame('scraping', $this->manager->current()->capabilitySlug);
+            self::assertSame('primary', $this->manager->current()->contextSlug);
         });
 
         self::assertFalse($this->manager->hasCurrent());
@@ -86,12 +89,25 @@ final class DomainContextManagerTest extends TestCase
 
     public function testManualSetCurrentAndClearCurrent(): void
     {
-        $ctx = $this->manager->setCurrent('car-subscription', 'normalization');
+        $ctx = $this->manager->setCurrent('domain-one', 'archive');
 
         self::assertTrue($this->manager->hasCurrent());
-        self::assertSame('normalization', $this->manager->current()->capabilitySlug);
+        self::assertSame('archive', $this->manager->current()->contextSlug);
 
         $this->manager->clearCurrent();
         self::assertFalse($this->manager->hasCurrent());
+    }
+
+    public function testThrowsStorageConnectionNotFoundExceptionWhenConnectionMissingAndAutoCreateDisabled(): void
+    {
+        $this->registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-two',
+            contextSlug: 'custom-db',
+            connectionName: 'non_existent_connection',
+            autoCreateSqliteDatabase: false
+        ));
+
+        $this->expectException(StorageConnectionNotFoundException::class);
+        $this->manager->setCurrent('domain-two', 'custom-db');
     }
 }

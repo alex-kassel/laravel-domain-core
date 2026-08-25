@@ -72,7 +72,7 @@ final class DomainRegistry implements DomainRegistryInterface
 
         // 3. Deduplication / Merge with existing context if present
         $profile = $this->domains[$context->domainSlug];
-        $existing = $profile->getContext($context->capabilitySlug);
+        $existing = $profile->getContext($context->contextSlug);
 
         if ($existing !== null) {
             $mergedPaths = array_values(array_unique(array_merge($existing->migrationPaths, $context->migrationPaths)));
@@ -80,7 +80,7 @@ final class DomainRegistry implements DomainRegistryInterface
 
             $mergedContext = new StorageContext(
                 domainSlug: $context->domainSlug,
-                capabilitySlug: $context->capabilitySlug,
+                contextSlug: $context->contextSlug,
                 connectionName: $context->connectionName,
                 tablePrefix: $context->tablePrefix,
                 migrationPaths: $mergedPaths,
@@ -113,18 +113,18 @@ final class DomainRegistry implements DomainRegistryInterface
         return $this->domains;
     }
 
-    public function hasStorageContext(string $domainSlug, string $capabilitySlug): bool
+    public function hasStorageContext(string $domainSlug, string $contextSlug = 'default'): bool
     {
-        return isset($this->domains[$domainSlug]) && $this->domains[$domainSlug]->hasContext($capabilitySlug);
+        return isset($this->domains[$domainSlug]) && $this->domains[$domainSlug]->hasContext($contextSlug);
     }
 
-    public function getStorageContext(string $domainSlug, string $capabilitySlug): StorageContext
+    public function getStorageContext(string $domainSlug, string $contextSlug = 'default'): StorageContext
     {
         $domain = $this->getDomain($domainSlug);
-        $context = $domain->getContext($capabilitySlug);
+        $context = $domain->getContext($contextSlug);
 
         if ($context === null) {
-            throw StorageContextNotFoundException::forCapability($domainSlug, $capabilitySlug);
+            throw StorageContextNotFoundException::forContext($domainSlug, $contextSlug);
         }
 
         return $context;
@@ -135,7 +135,7 @@ final class DomainRegistry implements DomainRegistryInterface
         $all = [];
         foreach ($this->domains as $domain) {
             foreach ($domain->allContexts() as $context) {
-                $all["{$context->domainSlug}:{$context->capabilitySlug}"] = $context;
+                $all["{$context->domainSlug}:{$context->contextSlug}"] = $context;
             }
         }
 

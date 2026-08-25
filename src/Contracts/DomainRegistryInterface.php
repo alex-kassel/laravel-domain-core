@@ -32,9 +32,9 @@ interface DomainRegistryInterface
      */
     public function allDomains(): array;
 
-    public function hasStorageContext(string $domainSlug, string $capabilitySlug): bool;
+    public function hasStorageContext(string $domainSlug, string $contextSlug = 'default'): bool;
 
-    public function getStorageContext(string $domainSlug, string $capabilitySlug): StorageContext;
+    public function getStorageContext(string $domainSlug, string $contextSlug = 'default'): StorageContext;
 
     /**
      * @return array<string, StorageContext>

@@ -12,7 +12,7 @@ use Illuminate\Support\Str;
 final class MakeDomainCommand extends Command
 {
     protected $signature = 'domain:make-domain
-                            {domain : The kebab-case domain name (e.g. car-subscription)}
+                            {domain : The kebab-case domain name (e.g. domain-one)}
                             {--vendor=alex-kassel : The package vendor prefix}';
 
     protected $description = 'Scaffold a standardized domain package under packages/{vendor}/{domain}';
@@ -82,7 +82,7 @@ declare(strict_types=1);
 return [
     'domain' => '{$domain}',
     'name' => '{$studlyDomain}',
-    'capabilities' => [
+    'contexts' => [
         'default' => [
             'connection' => 'sqlite_{$domain}_default',
             'table_prefix' => '{$domain}_',
@@ -123,12 +123,12 @@ final class {$studlyDomain}ServiceProvider extends ServiceProvider
             name: \$config['name'] ?? '{$studlyDomain}'
         );
 
-        foreach (\$config['capabilities'] ?? [] as \$cap => \$settings) {
+        foreach (\$config['contexts'] ?? [] as \$contextSlug => \$settings) {
             \$registry->registerStorageContext(new StorageContext(
                 domainSlug: '{$domain}',
-                capabilitySlug: \$cap,
-                connectionName: \$settings['connection'] ?? 'sqlite_{$domain}_{\$cap}',
-                tablePrefix: \$settings['table_prefix'] ?? '{$domain}_{\$cap}_',
+                contextSlug: \$contextSlug,
+                connectionName: \$settings['connection'] ?? 'sqlite_{$domain}_{\$contextSlug}',
+                tablePrefix: \$settings['table_prefix'] ?? '{$domain}_{\$contextSlug}_',
                 migrationPaths: \$settings['migrations'] ?? [],
             ));
         }

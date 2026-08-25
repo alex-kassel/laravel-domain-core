@@ -12,7 +12,9 @@ final class LockAcquisitionException extends RuntimeException implements DomainC
     public static function forDomain(string $domainSlug, string $componentKey, ?Throwable $previous = null): self
     {
         return new self(
-            "Failed to acquire lock backend for domain '{$domainSlug}' on component '{$componentKey}'.",
+            "[PROBLEM] Lock system failed while processing domain '{$domainSlug}' on component '{$componentKey}'. " .
+            "[CAUSE] The cache/lock provider encountered an internal transport or backend failure: " . ($previous ? $previous->getMessage() : 'unknown error') . ". " .
+            "[RESOLUTION] Check that your cache driver (Redis, Memcached, Database) is running and reachable.",
             0,
             $previous
         );

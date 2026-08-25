@@ -10,7 +10,7 @@ final class CommandOptionsDTO
      * @param bool $all
      * @param array<int, string> $domains
      * @param array<int, string> $exceptDomains
-     * @param string|null $capability
+     * @param string|null $context
      * @param bool $force
      * @param bool $dryRun
      * @param array<string, mixed> $extraOptions
@@ -19,7 +19,7 @@ final class CommandOptionsDTO
         public readonly bool $all = false,
         public readonly array $domains = [],
         public readonly array $exceptDomains = [],
-        public readonly ?string $capability = null,
+        public readonly ?string $context = null,
         public readonly bool $force = false,
         public readonly bool $dryRun = false,
         public readonly array $extraOptions = [],
@@ -44,7 +44,7 @@ final class CommandOptionsDTO
             all: (bool) ($input['all'] ?? false),
             domains: $parseList($input['domains'] ?? $input['domain'] ?? []),
             exceptDomains: $parseList($input['except-domains'] ?? $input['except_domains'] ?? []),
-            capability: isset($input['capability']) && trim((string) $input['capability']) !== '' ? trim((string) $input['capability']) : null,
+            context: isset($input['context']) && trim((string) $input['context']) !== '' ? trim((string) $input['context']) : null,
             force: (bool) ($input['force'] ?? false),
             dryRun: (bool) ($input['dry-run'] ?? $input['dry_run'] ?? false),
             extraOptions: (array) ($input['extraOptions'] ?? $input['extra_options'] ?? []),

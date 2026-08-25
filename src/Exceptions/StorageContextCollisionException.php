@@ -11,7 +11,9 @@ final class StorageContextCollisionException extends RuntimeException implements
     public static function forCollision(string $newDomainSlug, string $existingDomainSlug, string $connectionName, string $tablePrefix): self
     {
         return new self(
-            "Storage context collision detected: Domain '{$newDomainSlug}' attempted to register connection '{$connectionName}' with prefix '{$tablePrefix}', which is already owned by domain '{$existingDomainSlug}'."
+            "[PROBLEM] Storage context collision: Domain '{$newDomainSlug}' attempted to claim connection '{$connectionName}' with table prefix '{$tablePrefix}'. " .
+            "[CAUSE] Connection '{$connectionName}' and prefix '{$tablePrefix}' are already owned by domain '{$existingDomainSlug}'. " .
+            "[RESOLUTION] Assign a unique connection name or distinct table prefix for domain '{$newDomainSlug}' to prevent cross-domain table collisions."
         );
     }
 }

@@ -10,8 +10,8 @@ use Closure;
 use Illuminate\Support\Facades\Facade;
 
 /**
- * @method static mixed using(string $domainSlug, string $capabilitySlug, Closure $callback)
- * @method static StorageContext setCurrent(string $domainSlug, string $capabilitySlug)
+ * @method static mixed using(string $domainSlug, string $contextSlug, Closure $callback)
+ * @method static StorageContext setCurrent(string $domainSlug, string $contextSlug)
  * @method static void setCurrentContext(StorageContext $context)
  * @method static StorageContext current()
  * @method static ?StorageContext currentOrNull()

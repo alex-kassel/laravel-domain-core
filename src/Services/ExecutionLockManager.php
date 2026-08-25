@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace AlexKassel\DomainCore\Services;
 
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
+use AlexKassel\DomainCore\Events\LockAcquisitionFailed;
 use AlexKassel\DomainCore\Exceptions\LockAcquisitionException;
 use Closure;
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Illuminate\Contracts\Events\Dispatcher;
 use Throwable;
 
 final class ExecutionLockManager implements ExecutionLockManagerInterface
 {
     public function __construct(
         private readonly CacheRepository $cache,
+        private readonly Dispatcher $events,
     ) {}
 
     public function withLock(
@@ -30,26 +33,44 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         }
 
         try {
-            $lock = $this->cache->lock($lockKey, $ttlSeconds);
+            $lock = method_exists($this->cache, 'lock')
+                ? $this->cache->lock($lockKey, $ttlSeconds)
+                : $this->cache->getStore()->lock($lockKey, $ttlSeconds);
 
-            if (!$lock->get()) {
-                return false; // Lock occupied, skipped
-            }
-
-            try {
-                $callback();
-                return true;
-            } finally {
-                $lock->release();
-            }
+            $acquired = $lock->get();
         } catch (Throwable $e) {
+            $this->events->dispatch(LockAcquisitionFailed::fromThrowable($domainSlug, $componentKey, $e));
             throw LockAcquisitionException::forDomain($domainSlug, $componentKey, $e);
+        }
+
+        if (!$acquired) {
+            return false; // Lock occupied, skipped
+        }
+
+        try {
+            $callback();
+            return true;
+        } finally {
+            try {
+                $lock->release();
+            } catch (Throwable) {
+                // Ignore release failures in finally to preserve primary exception
+            }
         }
     }
 
     public function releaseLock(string $domainSlug, string $componentKey): bool
     {
         $lockKey = $this->formatLockKey($domainSlug, $componentKey);
+
+        if (method_exists($this->cache, 'restoreLock')) {
+            try {
+                $this->cache->restoreLock($lockKey, '')->forceRelease();
+                return true;
+            } catch (Throwable) {
+                // Fallback to cache forget
+            }
+        }
 
         return $this->cache->forget($lockKey);
     }

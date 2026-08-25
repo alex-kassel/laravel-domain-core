@@ -47,33 +47,33 @@ PHP;
 
         // Configure memory database for testing
         config([
-            'database.connections.sqlite_test_raw' => [
+            'database.connections.sqlite_domain_one_primary' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
-                'prefix' => 'raw_',
+                'prefix' => 'one_primary_',
             ],
-            'database.connections.sqlite_test_norm' => [
+            'database.connections.sqlite_domain_one_archive' => [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
-                'prefix' => 'norm_',
+                'prefix' => 'one_archive_',
             ],
         ]);
 
         $registry = $this->app->make(DomainRegistryInterface::class);
 
         $registry->registerStorageContext(new StorageContext(
-            domainSlug: 'test-domain',
-            capabilitySlug: 'scraping',
-            connectionName: 'sqlite_test_raw',
-            tablePrefix: 'raw_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_domain_one_primary',
+            tablePrefix: 'one_primary_',
             migrationPaths: [$this->tempMigrationDir],
         ));
 
         $registry->registerStorageContext(new StorageContext(
-            domainSlug: 'test-domain',
-            capabilitySlug: 'normalization',
-            connectionName: 'sqlite_test_norm',
-            tablePrefix: 'norm_',
+            domainSlug: 'domain-one',
+            contextSlug: 'archive',
+            connectionName: 'sqlite_domain_one_archive',
+            tablePrefix: 'one_archive_',
             migrationPaths: [$this->tempMigrationDir],
         ));
     }
@@ -85,20 +85,20 @@ PHP;
         parent::tearDown();
     }
 
-    public function testMigrateRunsAcrossTargetCapabilityContexts(): void
+    public function testMigrateRunsAcrossTargetContexts(): void
     {
         $manager = $this->app->make(MigrationManagerInterface::class);
 
-        // 1. Migrate only scraping capability
-        $reports = $manager->migrate('test-domain', 'scraping');
+        // 1. Migrate only primary context
+        $reports = $manager->migrate('domain-one', 'primary', true);
 
         self::assertCount(1, $reports);
         self::assertTrue($reports[0]->isSuccess());
-        self::assertSame('scraping', $reports[0]->capabilitySlug);
+        self::assertSame('primary', $reports[0]->contextSlug);
         self::assertCount(1, $reports[0]->executedMigrations);
 
         // 2. Migrate all remaining
-        $allReports = $manager->migrate('test-domain');
+        $allReports = $manager->migrate('domain-one', null, true);
         self::assertCount(2, $allReports);
     }
 
@@ -107,10 +107,10 @@ PHP;
         $manager = $this->app->make(MigrationManagerInterface::class);
 
         // Migrate first
-        $manager->migrate('test-domain', 'scraping');
+        $manager->migrate('domain-one', 'primary', true);
 
         // Rollback
-        $reports = $manager->rollback('test-domain', 'scraping');
+        $reports = $manager->rollback('domain-one', 'primary', 1, true);
 
         self::assertCount(1, $reports);
         self::assertTrue($reports[0]->isSuccess());

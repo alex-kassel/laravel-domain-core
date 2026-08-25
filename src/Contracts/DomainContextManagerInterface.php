@@ -10,21 +10,21 @@ use Closure;
 interface DomainContextManagerInterface
 {
     /**
-     * Execute a callback inside an isolated active domain & capability scope.
+     * Execute a callback inside an isolated active domain & context scope.
      * Automatically restores the previous scope upon completion or failure.
      *
      * @template T
      * @param string $domainSlug
-     * @param string $capabilitySlug
+     * @param string $contextSlug
      * @param (Closure(StorageContext): T) $callback
      * @return T
      */
-    public function using(string $domainSlug, string $capabilitySlug, Closure $callback): mixed;
+    public function using(string $domainSlug, string $contextSlug, Closure $callback): mixed;
 
     /**
      * Set the current active context manually.
      */
-    public function setCurrent(string $domainSlug, string $capabilitySlug): StorageContext;
+    public function setCurrent(string $domainSlug, string $contextSlug): StorageContext;
 
     /**
      * Set active context directly from a StorageContext instance.

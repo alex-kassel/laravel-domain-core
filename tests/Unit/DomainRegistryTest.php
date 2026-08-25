@@ -24,14 +24,14 @@ final class DomainRegistryTest extends TestCase
 
     public function testCanRegisterAndRetrieveDomainProfile(): void
     {
-        $profile = $this->registry->registerDomain('car-subscription', 'Car Subscription', ['category' => 'automotive']);
+        $profile = $this->registry->registerDomain('domain-one', 'Domain One', ['category' => 'leasing']);
 
-        self::assertTrue($this->registry->hasDomain('car-subscription'));
-        self::assertSame('car-subscription', $profile->slug);
-        self::assertSame('Car Subscription', $profile->name);
-        self::assertSame(['category' => 'automotive'], $profile->metadata);
+        self::assertTrue($this->registry->hasDomain('domain-one'));
+        self::assertSame('domain-one', $profile->slug);
+        self::assertSame('Domain One', $profile->name);
+        self::assertSame(['category' => 'leasing'], $profile->metadata);
 
-        $retrieved = $this->registry->getDomain('car-subscription');
+        $retrieved = $this->registry->getDomain('domain-one');
         self::assertSame($profile, $retrieved);
     }
 
@@ -44,36 +44,36 @@ final class DomainRegistryTest extends TestCase
     public function testCanRegisterAndRetrieveStorageContext(): void
     {
         $context = new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
-            connectionName: 'sqlite_car_subscription_raw',
-            tablePrefix: 'cs_raw_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_domain_one_primary',
+            tablePrefix: 'one_primary_',
             migrationPaths: ['/path/to/migrations'],
         );
 
         $this->registry->registerStorageContext($context);
 
-        self::assertTrue($this->registry->hasStorageContext('car-subscription', 'scraping'));
-        $retrieved = $this->registry->getStorageContext('car-subscription', 'scraping');
+        self::assertTrue($this->registry->hasStorageContext('domain-one', 'primary'));
+        $retrieved = $this->registry->getStorageContext('domain-one', 'primary');
 
-        self::assertSame('car-subscription', $retrieved->domainSlug);
-        self::assertSame('scraping', $retrieved->capabilitySlug);
-        self::assertSame('sqlite_car_subscription_raw', $retrieved->connectionName);
-        self::assertSame('cs_raw_', $retrieved->tablePrefix);
+        self::assertSame('domain-one', $retrieved->domainSlug);
+        self::assertSame('primary', $retrieved->contextSlug);
+        self::assertSame('sqlite_domain_one_primary', $retrieved->connectionName);
+        self::assertSame('one_primary_', $retrieved->tablePrefix);
     }
 
     public function testThrowsExceptionOnStorageContextCollisionBetweenDifferentDomains(): void
     {
         $context1 = new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
             connectionName: 'shared_db',
             tablePrefix: 'shared_prefix_',
         );
 
         $context2 = new StorageContext(
-            domainSlug: 'real-estate',
-            capabilitySlug: 'scraping',
+            domainSlug: 'domain-two',
+            contextSlug: 'primary',
             connectionName: 'shared_db',
             tablePrefix: 'shared_prefix_', // Exact same connection + prefix collision!
         );
@@ -84,39 +84,39 @@ final class DomainRegistryTest extends TestCase
         $this->registry->registerStorageContext($context2);
     }
 
-    public function testDeduplicatesAndMergesContextForSameDomainAndCapability(): void
+    public function testDeduplicatesAndMergesContextForSameDomainAndContextSlug(): void
     {
         $context1 = new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
-            connectionName: 'db_cs',
-            tablePrefix: 'cs_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'db_one',
+            tablePrefix: 'one_',
             migrationPaths: ['/path/one'],
         );
 
         $context2 = new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
-            connectionName: 'db_cs',
-            tablePrefix: 'cs_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'db_one',
+            tablePrefix: 'one_',
             migrationPaths: ['/path/two'],
         );
 
         $this->registry->registerStorageContext($context1);
         $this->registry->registerStorageContext($context2);
 
-        $merged = $this->registry->getStorageContext('car-subscription', 'scraping');
+        $merged = $this->registry->getStorageContext('domain-one', 'primary');
         self::assertEqualsCanonicalizing(['/path/one', '/path/two'], $merged->migrationPaths);
     }
 
     public function testCanCompileAndLoadCache(): void
     {
-        $this->registry->registerDomain('car-subscription', 'Car Subscription');
+        $this->registry->registerDomain('domain-one', 'Domain One');
         $this->registry->registerStorageContext(new StorageContext(
-            domainSlug: 'car-subscription',
-            capabilitySlug: 'scraping',
-            connectionName: 'db_raw',
-            tablePrefix: 'cs_raw_',
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'db_one_primary',
+            tablePrefix: 'one_primary_',
         ));
 
         $compiled = $this->registry->compileCache();
@@ -124,8 +124,8 @@ final class DomainRegistryTest extends TestCase
         $newRegistry = new DomainRegistry();
         $newRegistry->loadFromCache($compiled);
 
-        self::assertTrue($newRegistry->hasDomain('car-subscription'));
-        self::assertTrue($newRegistry->hasStorageContext('car-subscription', 'scraping'));
-        self::assertSame('cs_raw_', $newRegistry->getStorageContext('car-subscription', 'scraping')->tablePrefix);
+        self::assertTrue($newRegistry->hasDomain('domain-one'));
+        self::assertTrue($newRegistry->hasStorageContext('domain-one', 'primary'));
+        self::assertSame('one_primary_', $newRegistry->getStorageContext('domain-one', 'primary')->tablePrefix);
     }
 }

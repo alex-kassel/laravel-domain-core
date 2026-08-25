@@ -7,9 +7,9 @@ namespace AlexKassel\DomainCore\DTOs;
 final class DomainProfile
 {
     /**
-     * @param string $slug Unique domain slug (e.g., 'car-subscription')
-     * @param string $name Human-readable domain name (e.g., 'Car Subscription')
-     * @param array<string, StorageContext> $contexts Storage contexts keyed by capability slug
+     * @param string $slug Unique domain slug (e.g., 'domain-one')
+     * @param string $name Human-readable domain name (e.g., 'Domain One')
+     * @param array<string, StorageContext> $contexts Storage contexts keyed by context slug
      * @param array<string, mixed> $metadata Arbitrary domain metadata
      */
     public function __construct(
@@ -21,18 +21,18 @@ final class DomainProfile
 
     public function addContext(StorageContext $context): self
     {
-        $this->contexts[$context->capabilitySlug] = $context;
+        $this->contexts[$context->contextSlug] = $context;
         return $this;
     }
 
-    public function getContext(string $capabilitySlug): ?StorageContext
+    public function getContext(string $contextSlug): ?StorageContext
     {
-        return $this->contexts[$capabilitySlug] ?? null;
+        return $this->contexts[$contextSlug] ?? null;
     }
 
-    public function hasContext(string $capabilitySlug): bool
+    public function hasContext(string $contextSlug): bool
     {
-        return isset($this->contexts[$capabilitySlug]);
+        return isset($this->contexts[$contextSlug]);
     }
 
     /**
@@ -49,8 +49,8 @@ final class DomainProfile
     public static function fromArray(array $data): self
     {
         $contexts = [];
-        foreach ((array) ($data['contexts'] ?? []) as $cap => $ctxData) {
-            $contexts[$cap] = $ctxData instanceof StorageContext ? $ctxData : StorageContext::fromArray($ctxData);
+        foreach ((array) ($data['contexts'] ?? []) as $contextSlug => $ctxData) {
+            $contexts[$contextSlug] = $ctxData instanceof StorageContext ? $ctxData : StorageContext::fromArray($ctxData);
         }
 
         return new self(
@@ -67,8 +67,8 @@ final class DomainProfile
     public function toArray(): array
     {
         $contexts = [];
-        foreach ($this->contexts as $cap => $ctx) {
-            $contexts[$cap] = $ctx->toArray();
+        foreach ($this->contexts as $contextSlug => $ctx) {
+            $contexts[$contextSlug] = $ctx->toArray();
         }
 
         return [

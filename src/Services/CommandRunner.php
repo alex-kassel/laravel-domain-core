@@ -10,6 +10,8 @@ use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
 use AlexKassel\DomainCore\DTOs\CommandExecutionReport;
 use AlexKassel\DomainCore\DTOs\CommandOptionsDTO;
 use AlexKassel\DomainCore\DTOs\DomainProfile;
+use AlexKassel\DomainCore\Enums\ExecutionStatus;
+use AlexKassel\DomainCore\Events\CommandExecutionFailed;
 use AlexKassel\DomainCore\Events\CommandRunSkippedDueToOverlap;
 use Closure;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -62,14 +64,14 @@ final class CommandRunner implements CommandRunnerInterface
     ): CommandExecutionReport {
         $startTime = microtime(true);
         $itemsProcessed = 0;
-        $status = 'SUCCESS';
+        $status = ExecutionStatus::SUCCESS;
         $message = null;
 
         if ($options->dryRun) {
             return new CommandExecutionReport(
                 domainSlug: $domain->slug,
                 componentKey: $componentKey,
-                status: 'SUCCESS',
+                status: ExecutionStatus::SUCCESS,
                 itemsProcessed: 0,
                 durationSeconds: 0.0,
                 message: 'Dry run completed without changes.'
@@ -95,15 +97,16 @@ final class CommandRunner implements CommandRunnerInterface
                 return new CommandExecutionReport(
                     domainSlug: $domain->slug,
                     componentKey: $componentKey,
-                    status: 'SKIPPED',
+                    status: ExecutionStatus::SKIPPED,
                     itemsProcessed: 0,
                     durationSeconds: round(microtime(true) - $startTime, 4),
                     message: "Execution skipped due to active overlap lock for domain '{$domain->slug}' on component '{$componentKey}'."
                 );
             }
         } catch (Throwable $e) {
-            $status = 'FAILED';
+            $status = ExecutionStatus::FAILED;
             $message = $e->getMessage();
+            $this->events->dispatch(CommandExecutionFailed::fromThrowable($domain->slug, $componentKey, $e));
         }
 
         $duration = round(microtime(true) - $startTime, 4);

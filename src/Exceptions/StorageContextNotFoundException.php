@@ -8,10 +8,12 @@ use RuntimeException;
 
 final class StorageContextNotFoundException extends RuntimeException implements DomainCoreExceptionInterface
 {
-    public static function forCapability(string $domainSlug, string $capabilitySlug): self
+    public static function forContext(string $domainSlug, string $contextSlug): self
     {
         return new self(
-            "Storage context for capability '{$capabilitySlug}' not found in domain '{$domainSlug}'."
+            "[PROBLEM] Storage context '{$contextSlug}' is not registered under domain '{$domainSlug}'. " .
+            "[CAUSE] The domain profile exists in DomainRegistry, but no StorageContext was registered with contextSlug: '{$contextSlug}'. " .
+            "[RESOLUTION] Register the storage context via DomainRegistry::registerStorageContext(new StorageContext(domainSlug: '{$domainSlug}', contextSlug: '{$contextSlug}', ...)) in your DomainServiceProvider::boot() method."
         );
     }
 }

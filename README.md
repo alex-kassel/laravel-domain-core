@@ -1,24 +1,22 @@
 # Laravel Domain Core
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core.svg?style=flat-square)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/alex-kassel/laravel-domain-core/packagist.yml?branch=main&label=tests&style=flat-square)](https://github.com/alex-kassel/laravel-domain-core/actions)
-[![Total Downloads](https://img.shields.io/packagist/dt/alex-kassel/laravel-domain-core.svg?style=flat-square)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![License](https://img.shields.io/packagist/l/alex-kassel/laravel-domain-core.svg?style=flat-square)](LICENSE)
 
-A high-cohesion platform foundation package for Laravel 11.x, 12.x, and 13.x applications. `alex-kassel/laravel-domain-core` consolidates **Domain Context Registration**, **Dynamic Multi-Database Migrations**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Graceful Overlap Recovery**, and **Child Package Scaffolding**.
+A high-cohesion platform foundation package for Laravel 11.x and 12.x applications. `alex-kassel/laravel-domain-core` provides **Domain & Storage Context Registration**, **Dynamic Multi-Database Provisioning & Migrations**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Actionable Diagnostic Exceptions**, and **Child Package Scaffolding**.
 
 ---
 
 ## Subsystems & Architecture
 
-1. **Domain Context Registration (`DomainRegistryInterface`):** Runtime registration, discovery, resolution, enablement management, and caching of domain contexts, database connection names, and table prefixes.
-2. **Central `domains` Table Schema & Slug Immutability:** Owns the platform-wide central `domains` database table (`id`, `class`, `slug`, `created_at`) with automatic slug resolution and mismatch/collision enforcement (`DomainSlugCollisionException`, `DomainSlugMismatchException`).
-3. **Dynamic Multi-Database Migrations (`MigrationManagerInterface`):** Independent migration manager supporting SQLite, MySQL, and PostgreSQL with composite migration identity tracking (`{$packageSlug}:{$domainSlug}:{$filename}`) and 2-stage SQLite database auto-provisioning.
-4. **Context-Aware Base Eloquent Models (`ContextAwareModel` & `HasDomainContextTrait`):** Base Eloquent models and traits that dynamically route database connections and table prefixes at runtime based on the active `DomainContext`.
-5. **Standardized Operator CLI DX (`CommandRunnerInterface`):** Uniform Artisan command options (`--all`, `--domains`, `--except-domains`, `--force`, `--dry-run`) across platform packages.
-6. **Distributed Lock Management (`ExecutionLockManagerInterface`):** Cache/Redis locks per domain and component to prevent overlapping execution across hosts.
-7. **Graceful Overlap Recovery (`SKIPPED`):** Automatically handles active execution locks by returning `CommandExecutionReport(status: 'SKIPPED')`, printing operator warnings, and emitting `CommandRunSkippedDueToOverlap` diagnostic events.
-8. **Child Package Generator (`domain-core:make-domain`):** Scaffolds publication-ready child domain package skeletons with complete directory structure, configuration, providers, and test setups.
+1. **Domain & Storage Context Registration (`DomainRegistryInterface`):** Runtime registration, discovery, resolution, and compile caching of domains and storage contexts (`StorageContext`).
+2. **Unified Database Provisioning (`DatabaseProvisioner`):** Multi-database provisioning supporting SQLite auto-creation and connection verification for SQLite, MySQL, and PostgreSQL with actionable errors when connections are missing and `autoCreateSqliteDatabase` is disabled.
+3. **Dynamic Multi-Database Migrations (`MigrationManagerInterface`):** Multi-context migration manager with scope isolation, destructive operation guards, and support for comma-separated domain filtering.
+4. **Context-Aware Base Eloquent Models (`ContextAwareModel` & `HasDomainContextTrait`):** Base Eloquent models and traits that dynamically route database connections and table prefixes at runtime based on the ambient `DomainContext` or explicit model properties (`$explicitContext`, `$explicitDomain`).
+5. **Standardized Operator CLI DX (`CommandRunnerInterface`):** Uniform Artisan command options (`--all`, `--domains`, `--except-domains`, `--context`, `--force`, `--dry-run`) across platform packages.
+6. **Distributed Lock Management (`ExecutionLockManagerInterface`):** Cache/Redis locks per domain and component without masking domain callback exceptions.
+7. **Actionable 3-Part Exceptions & Developer Diagnostic Events:** Exceptions provide structured `[PROBLEM]`, `[CAUSE]`, and `[RESOLUTION]` messages for humans and AI agents, paired with rich diagnostic events (`StorageConnectionMissing`, `CommandExecutionFailed`, `LockAcquisitionFailed`).
+8. **Child Package Generator (`domain:make-domain`):** Scaffolds standardized domain package skeletons with clean directory structure, configuration, providers, and test setups.
 
 ---
 
@@ -38,187 +36,165 @@ The Service Provider `AlexKassel\DomainCore\Providers\DomainCoreServiceProvider`
 
 ### 1. Registering Domain Contexts (`DomainRegistryInterface`)
 
-Domain contexts define database connection names, table prefixes, and domain identifiers:
+Domains and storage contexts define database connection names, table prefixes, and migration paths:
 
 ```php
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
-use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\DTOs\StorageContext;
 
 $registry = app(DomainRegistryInterface::class);
 
-$registry->register(new DomainContext(
+// 1. Register domain
+$registry->registerDomain(
+    slug: 'domain-one',
+    name: 'Domain One',
+    metadata: ['category' => 'leasing']
+);
+
+// 2. Register storage context
+$registry->registerStorageContext(new StorageContext(
     domainSlug: 'domain-one',
-    packageSlug: 'alex-kassel/package-one',
-    connectionName: 'sqlite_domain_one',
-    tablePrefix: 'd1_',
-    className: App\Domains\DomainOneContext::class,
+    contextSlug: 'primary',
+    connectionName: 'sqlite_domain_one_primary',
+    tablePrefix: 'one_primary_',
+    migrationPaths: [__DIR__ . '/../database/migrations'],
     autoCreateSqliteDatabase: true
 ));
-
-// Resolve context by slug
-$context = $registry->resolve('domain-one');
-echo $context->connectionName; // 'sqlite_domain_one'
-echo $context->tablePrefix;     // 'd1_'
 ```
 
 ---
 
-### 2. Context-Aware Base Eloquent Models
+### 2. Ambient Execution Scopes (`DomainContext`)
 
-Extend `ContextAwareModel` or use `HasDomainContextTrait` to dynamically route Eloquent queries to the correct database connection and prefix at runtime based on `$domainSlug`:
+Execute business logic within an isolated domain and storage context:
+
+```php
+use AlexKassel\DomainCore\Facades\DomainContext;
+
+DomainContext::using('domain-one', 'primary', function (StorageContext $context) {
+    // Models automatically resolve connection and prefix for 'domain-one' -> 'primary'
+    $item = new App\Models\DomainItem();
+    $item->title = 'Item One';
+    $item->save();
+});
+```
+
+---
+
+### 3. Context-Aware Base Eloquent Models
+
+Extend `ContextAwareModel` or use `HasDomainContextTrait`:
 
 ```php
 use AlexKassel\DomainCore\Database\Models\ContextAwareModel;
 
 class DomainItem extends ContextAwareModel
 {
-    /**
-     * Bind this model dynamically to the registered domain context.
-     */
-    protected ?string $domainSlug = 'domain-one';
-
+    protected $table = 'items';
     protected $fillable = ['title', 'sku', 'price'];
 }
 
-// Queries automatically use connection 'sqlite_domain_one' and table 'd1_domain_items'
-$items = DomainItem::where('price', '>', 100)->get();
+// Inside DomainContext::using('domain-one', 'primary') -> table is 'one_primary_items'
+```
+
+For models needing explicit contexts regardless of ambient scope:
+
+```php
+class ArchiveItem extends ContextAwareModel
+{
+    protected ?string $explicitContext = 'archive';
+    protected $table = 'archives';
+}
 ```
 
 ---
 
-### 3. Running Deterministic Multi-Database Migrations
+### 4. Running Multi-Database Migrations
 
 ```php
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 
 $migrationManager = app(MigrationManagerInterface::class);
 
-// Run migrations for a registered domain slug directly
-$report = $migrationManager->migrateDomain('domain-one');
-
-echo "Executed " . count($report->executedMigrations) . " migration(s) in " . $report->durationSeconds . "s\n";
+// Run migrations for domain-one's primary context
+$reports = $migrationManager->migrate(
+    domainSlug: 'domain-one',
+    contextSlug: 'primary',
+    force: true
+);
 ```
-
-Each migration is recorded in the migrations table using composite key `{$packageSlug}:{$domainSlug}:{$filename}` to prevent filename collisions across packages sharing database connections.
 
 ---
 
-### 4. CLI Execution & Overlap Protection (`CommandRunnerInterface`)
-
-Use `CommandRunnerInterface` in your custom Artisan console commands to parse standard flags and safely execute domain operations under lock protection:
+### 5. CLI Execution & Lock Protection (`CommandRunnerInterface`)
 
 ```php
 use AlexKassel\DomainCore\Contracts\CommandRunnerInterface;
 use AlexKassel\DomainCore\DTOs\CommandOptionsDTO;
-use AlexKassel\DomainCore\DTOs\DomainContext;
+use AlexKassel\DomainCore\DTOs\DomainProfile;
 
 $runner = app(CommandRunnerInterface::class);
 
-// 1. Parse raw options from Artisan input
 $options = $runner->parseCliOptions([
     'all' => true,
     'domains' => 'domain-one,domain-two',
-    'except-domains' => 'domain-two',
+    'context' => 'primary',
     'force' => false,
     'dry-run' => false,
 ]);
 
-// 2. Resolve target domain contexts matching flags
 $targetDomains = $runner->resolveTargetDomains($options);
 
-// 3. Execute domain callback with automatic lock acquisition and SKIPPED recovery
 foreach ($targetDomains as $domain) {
     $report = $runner->executeDomain(
         domain: $domain,
-        componentKey: 'runner',
-        callback: function (DomainContext $context, CommandOptionsDTO $opts) {
+        componentKey: 'runner-one',
+        callback: function (DomainProfile $profile) {
             // Process domain logic
-            return 42; // Returns executed items count
+            return 42; // Processed items count
         },
         options: $options
     );
-
-    if ($report->status === 'SKIPPED') {
-        // Automatically logged; event CommandRunSkippedDueToOverlap dispatched
-    }
 }
 ```
 
 ---
 
-### 5. Artisan Console Commands Catalog
+### 6. Artisan Console Commands Catalog
 
-All package commands are grouped under the `domain-core:` namespace:
+All package commands are grouped under the `domain:` namespace:
 
 ```bash
 # Display registration, connection, prefix, and status across domains
-php artisan domain-core:status
+php artisan domain:status
+php artisan domain:status --domains=domain-one,domain-two
 
-# Execute pending database migrations across all or specified registered domains
-php artisan domain-core:migrate
-php artisan domain-core:migrate --domain=domain-one
+# Execute database migrations across registered domain storage contexts
+php artisan domain:migrate
+php artisan domain:migrate --domain=domain-one --context=primary
+php artisan domain:migrate --domains=domain-one,domain-two
+
+# Rollback migrations
+php artisan domain:migrate --domain=domain-one --rollback --step=1
 
 # Compile and cache registered domain contexts for production
-php artisan domain-core:cache
+php artisan domain:cache
 
 # Clear compiled domain context cache
-php artisan domain-core:clear
+php artisan domain:clear
 
-# Scaffold a new child domain package directory
-php artisan domain-core:make-domain domain-one --vendor=alex-kassel
-```
-
----
-
-### 6. Scaffolding Child Packages (`domain-core:make-domain`)
-
-Scaffold a standardized, publication-ready child domain package under `packages/{vendor}/{slug}`:
-
-```bash
-php artisan domain-core:make-domain domain-one --vendor=alex-kassel
-```
-
-Scaffolded directory layout:
-```text
-packages/alex-kassel/domain-one/
-├── composer.json
-├── config/domain.php
-├── src/
-│   ├── Console/
-│   ├── DTOs/
-│   ├── Models/
-│   └── Providers/
-│       └── DomainOneServiceProvider.php
-└── tests/
-    └── Unit/
-```
-
----
-
-## Exception Taxonomy & Handling
-
-All package exceptions implement `AlexKassel\DomainCore\Exceptions\DomainCoreExceptionInterface`:
-
-```text
-DomainCoreExceptionInterface (Marker Interface)
- ├── DomainNotFoundException (thrown when resolving an unregistered/disabled domain slug)
- ├── DomainConnectionNotFoundException (thrown when database file/connection resolution fails)
- ├── DomainSlugCollisionException (thrown when a requested slug collides with another domain class)
- ├── DomainSlugMismatchException (thrown when a registered domain class changes its slug)
- ├── MigrationFailedException (thrown when migration execution or rollback fails)
- ├── DomainResolutionException (thrown when target CLI domain filtering fails)
- ├── LockAcquisitionException (thrown when lock backend connection fails critically)
- └── ScaffoldingException (thrown when package scaffolding fails due to directory collision)
+# Scaffold a new domain package skeleton
+php artisan domain:make-domain domain-one --vendor=alex-kassel
 ```
 
 ---
 
 ## Testing
 
-Run the PHPUnit test suite:
+Run the package test suite:
 
 ```bash
-composer test
+php artisan test packages/alex-kassel/laravel-domain-core/tests
 ```
 
 ---

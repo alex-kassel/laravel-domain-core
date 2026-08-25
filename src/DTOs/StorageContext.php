@@ -7,17 +7,17 @@ namespace AlexKassel\DomainCore\DTOs;
 final class StorageContext
 {
     /**
-     * @param string $domainSlug Unique domain slug (e.g., 'car-subscription')
-     * @param string $capabilitySlug Unique capability slug (e.g., 'scraping', 'normalization')
-     * @param string $connectionName Database connection name (e.g., 'sqlite_car_subscription_raw')
-     * @param string $tablePrefix Table prefix (e.g., 'cs_raw_')
+     * @param string $domainSlug Unique domain slug (e.g., 'domain-one')
+     * @param string $contextSlug Unique context slug (e.g., 'primary', 'archive', 'analytics')
+     * @param string $connectionName Database connection name (e.g., 'sqlite_domain_one_primary')
+     * @param string $tablePrefix Table prefix (e.g., 'one_primary_')
      * @param array<int, string> $migrationPaths Absolute directory paths containing migrations
      * @param bool $autoCreateSqliteDatabase Whether to automatically create SQLite database file if missing
-     * @param array<string, mixed> $extraOptions Custom metadata for capability cores
+     * @param array<string, mixed> $extraOptions Custom metadata for context storage
      */
     public function __construct(
         public readonly string $domainSlug,
-        public readonly string $capabilitySlug,
+        public readonly string $contextSlug,
         public readonly string $connectionName,
         public readonly string $tablePrefix = '',
         public readonly array $migrationPaths = [],
@@ -37,7 +37,7 @@ final class StorageContext
     {
         return new self(
             domainSlug: (string) ($data['domainSlug'] ?? $data['domain_slug'] ?? ''),
-            capabilitySlug: (string) ($data['capabilitySlug'] ?? $data['capability_slug'] ?? ''),
+            contextSlug: (string) ($data['contextSlug'] ?? $data['context_slug'] ?? ''),
             connectionName: (string) ($data['connectionName'] ?? $data['connection_name'] ?? ''),
             tablePrefix: (string) ($data['tablePrefix'] ?? $data['table_prefix'] ?? ''),
             migrationPaths: (array) ($data['migrationPaths'] ?? $data['migration_paths'] ?? []),
@@ -53,7 +53,7 @@ final class StorageContext
     {
         return [
             'domainSlug' => $this->domainSlug,
-            'capabilitySlug' => $this->capabilitySlug,
+            'contextSlug' => $this->contextSlug,
             'connectionName' => $this->connectionName,
             'tablePrefix' => $this->tablePrefix,
             'migrationPaths' => $this->migrationPaths,

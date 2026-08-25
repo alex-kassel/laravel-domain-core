@@ -15,6 +15,7 @@ use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
 use AlexKassel\DomainCore\Contracts\ExecutionLockManagerInterface;
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use AlexKassel\DomainCore\Services\CommandRunner;
+use AlexKassel\DomainCore\Services\DatabaseProvisioner;
 use AlexKassel\DomainCore\Services\DomainContextManager;
 use AlexKassel\DomainCore\Services\DomainRegistry;
 use AlexKassel\DomainCore\Services\ExecutionLockManager;
@@ -26,6 +27,13 @@ final class DomainCoreServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->singleton(DatabaseProvisioner::class, function ($app) {
+            return new DatabaseProvisioner(
+                files: $app->make('files'),
+                events: $app->make('events')
+            );
+        });
+
         $this->app->singleton(DomainRegistryInterface::class, function ($app) {
             $registry = new DomainRegistry();
 
@@ -44,7 +52,8 @@ final class DomainCoreServiceProvider extends ServiceProvider
 
         $this->app->singleton(DomainContextManagerInterface::class, function ($app) {
             return new DomainContextManager(
-                registry: $app->make(DomainRegistryInterface::class)
+                registry: $app->make(DomainRegistryInterface::class),
+                provisioner: $app->make(DatabaseProvisioner::class)
             );
         });
 
@@ -55,13 +64,15 @@ final class DomainCoreServiceProvider extends ServiceProvider
                 app: $app,
                 registry: $app->make(DomainRegistryInterface::class),
                 contextManager: $app->make(DomainContextManagerInterface::class),
+                provisioner: $app->make(DatabaseProvisioner::class),
                 files: $app->make('files')
             );
         });
 
         $this->app->singleton(ExecutionLockManagerInterface::class, function ($app) {
             return new ExecutionLockManager(
-                cache: $app->make('cache.store')
+                cache: $app->make('cache.store'),
+                events: $app->make('events')
             );
         });
 

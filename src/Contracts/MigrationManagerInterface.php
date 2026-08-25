@@ -10,17 +10,17 @@ use AlexKassel\DomainCore\DTOs\StorageContext;
 interface MigrationManagerInterface
 {
     /**
-     * Run migrations across registered storage contexts with optional domain/capability filtering.
+     * Run migrations across registered storage contexts with optional domain/context filtering.
      *
      * @param string|null $domainSlug
-     * @param string|null $capabilitySlug
+     * @param string|null $contextSlug
      * @param bool $force
      * @param bool $pretend
      * @return array<int, MigrationReport>
      */
     public function migrate(
         ?string $domainSlug = null,
-        ?string $capabilitySlug = null,
+        ?string $contextSlug = null,
         bool $force = false,
         bool $pretend = false
     ): array;
@@ -29,14 +29,14 @@ interface MigrationManagerInterface
      * Rollback migrations across registered storage contexts.
      *
      * @param string|null $domainSlug
-     * @param string|null $capabilitySlug
+     * @param string|null $contextSlug
      * @param int $step
      * @param bool $force
      * @return array<int, MigrationReport>
      */
     public function rollback(
         ?string $domainSlug = null,
-        ?string $capabilitySlug = null,
+        ?string $contextSlug = null,
         int $step = 1,
         bool $force = false
     ): array;
@@ -48,7 +48,7 @@ interface MigrationManagerInterface
      */
     public function reset(
         ?string $domainSlug = null,
-        ?string $capabilitySlug = null,
+        ?string $contextSlug = null,
         bool $force = false
     ): array;
 
@@ -59,7 +59,7 @@ interface MigrationManagerInterface
      */
     public function fresh(
         ?string $domainSlug = null,
-        ?string $capabilitySlug = null,
+        ?string $contextSlug = null,
         bool $force = false
     ): array;
 

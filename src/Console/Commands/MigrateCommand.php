@@ -15,8 +15,8 @@ final class MigrateCommand extends Command
     protected $signature = 'domain:migrate
                             {domain? : The specific domain slug to migrate}
                             {--domain= : Filter by domain slug}
-                            {--domains= : Filter by comma-separated domain slugs}
-                            {--capability= : Filter by capability slug (e.g. scraping, normalization)}
+                            {--domains= : Filter by comma-separated domain slugs (e.g. domain-one,domain-two)}
+                            {--context= : Filter by context slug (e.g. primary, archive, analytics)}
                             {--force : Force operation to run in production or bypass confirmation}
                             {--pretend : Dump the SQL queries that would be run}
                             {--step= : The number of migrations to rollback if rollback mode}
@@ -33,8 +33,16 @@ final class MigrateCommand extends Command
         $domainOpt = $this->option('domain');
         $domainsOpt = $this->option('domains');
 
-        $domain = $domainArg ?: ($domainOpt ?: $domainsOpt);
-        $capability = $this->option('capability');
+        $domainsList = [];
+        if (is_string($domainsOpt) && trim($domainsOpt) !== '') {
+            $domainsList = array_values(array_filter(array_map('trim', explode(',', $domainsOpt))));
+        } elseif (is_string($domainOpt) && trim($domainOpt) !== '') {
+            $domainsList = [trim($domainOpt)];
+        } elseif (is_string($domainArg) && trim($domainArg) !== '') {
+            $domainsList = [trim($domainArg)];
+        }
+
+        $context = $this->option('context');
         $force = (bool) $this->option('force');
         $pretend = (bool) $this->option('pretend');
         $isRollback = (bool) $this->option('rollback');
@@ -43,9 +51,7 @@ final class MigrateCommand extends Command
         $isFresh = (bool) $this->option('fresh');
         $step = (int) ($this->option('step') ?? 1);
 
-        $domainSlug = is_string($domain) && trim($domain) !== '' ? trim($domain) : null;
-        $capabilitySlug = is_string($capability) && trim($capability) !== '' ? trim($capability) : null;
-
+        $contextSlug = is_string($context) && trim($context) !== '' ? trim($context) : null;
         $isDestructive = $isFresh || $isRefresh || $isReset || $isRollback;
 
         // Production Guard
@@ -54,7 +60,7 @@ final class MigrateCommand extends Command
         }
 
         // Global Destruction Guard: If running destructive action across all domains without explicit target
-        if ($isDestructive && $domainSlug === null && !$force) {
+        if ($isDestructive && empty($domainsList) && !$force) {
             $actionName = match (true) {
                 $isFresh => 'DROP ALL TABLES and re-run migrations',
                 $isRefresh => 'RESET and re-run migrations',
@@ -69,25 +75,34 @@ final class MigrateCommand extends Command
             }
         }
 
-        if ($isFresh) {
-            $this->info('Dropping all tables and re-migrating domain storage contexts...');
-            $reports = $migrationManager->fresh($domainSlug, $capabilitySlug, $force);
-        } elseif ($isRefresh) {
-            $this->info('Resetting and re-migrating domain storage contexts...');
-            $migrationManager->reset($domainSlug, $capabilitySlug, $force);
-            $reports = $migrationManager->migrate($domainSlug, $capabilitySlug, $force, $pretend);
-        } elseif ($isReset) {
-            $this->info('Resetting all domain storage context migrations...');
-            $reports = $migrationManager->reset($domainSlug, $capabilitySlug, $force);
-        } elseif ($isRollback) {
-            $this->info('Rolling back domain storage contexts...');
-            $reports = $migrationManager->rollback($domainSlug, $capabilitySlug, $step, $force);
-        } else {
-            $this->info('Migrating domain storage contexts...');
-            $reports = $migrationManager->migrate($domainSlug, $capabilitySlug, $force, $pretend);
+        $targetSlugs = !empty($domainsList) ? $domainsList : [null];
+        $allReports = [];
+
+        foreach ($targetSlugs as $targetSlug) {
+            if ($isFresh) {
+                $this->info('Dropping all tables and re-migrating domain storage contexts' . ($targetSlug ? " for [{$targetSlug}]..." : '...'));
+                $reports = $migrationManager->fresh($targetSlug, $contextSlug, $force);
+            } elseif ($isRefresh) {
+                $this->info('Resetting and re-migrating domain storage contexts' . ($targetSlug ? " for [{$targetSlug}]..." : '...'));
+                $migrationManager->reset($targetSlug, $contextSlug, $force);
+                $reports = $migrationManager->migrate($targetSlug, $contextSlug, $force, $pretend);
+            } elseif ($isReset) {
+                $this->info('Resetting all domain storage context migrations' . ($targetSlug ? " for [{$targetSlug}]..." : '...'));
+                $reports = $migrationManager->reset($targetSlug, $contextSlug, $force);
+            } elseif ($isRollback) {
+                $this->info('Rolling back domain storage contexts' . ($targetSlug ? " for [{$targetSlug}]..." : '...'));
+                $reports = $migrationManager->rollback($targetSlug, $contextSlug, $step, $force);
+            } else {
+                $this->info('Migrating domain storage contexts' . ($targetSlug ? " for [{$targetSlug}]..." : '...'));
+                $reports = $migrationManager->migrate($targetSlug, $contextSlug, $force, $pretend);
+            }
+
+            foreach ($reports as $r) {
+                $allReports[] = $r;
+            }
         }
 
-        if (empty($reports)) {
+        if (empty($allReports)) {
             $this->warn('No matching storage contexts found to process.');
             return self::SUCCESS;
         }
@@ -95,12 +110,12 @@ final class MigrateCommand extends Command
         $hasFailure = false;
         $tableRows = [];
 
-        foreach ($reports as $report) {
-            if (!$report->isSuccess() && $report->status !== 'NO_OP') {
+        foreach ($allReports as $report) {
+            if (!$report->isSuccess() && $report->status->value !== 'NO_OP') {
                 $hasFailure = true;
             }
 
-            $statusFormatted = match ($report->status) {
+            $statusFormatted = match ($report->status->value) {
                 'SUCCESS' => '<info>SUCCESS</info>',
                 'NO_OP' => '<comment>NO_OP</comment>',
                 default => '<error>FAILED</error>',
@@ -108,7 +123,7 @@ final class MigrateCommand extends Command
 
             $tableRows[] = [
                 $report->domainSlug,
-                $report->capabilitySlug,
+                $report->contextSlug,
                 $report->connectionName,
                 count($report->executedMigrations),
                 $statusFormatted,
@@ -118,7 +133,7 @@ final class MigrateCommand extends Command
         }
 
         $this->table(
-            ['Domain', 'Capability', 'Connection', 'Migrations', 'Status', 'Duration', 'Error'],
+            ['Domain', 'Context', 'Connection', 'Migrations', 'Status', 'Duration', 'Error'],
             $tableRows
         );
 

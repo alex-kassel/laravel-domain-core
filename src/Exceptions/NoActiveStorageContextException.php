@@ -11,7 +11,9 @@ final class NoActiveStorageContextException extends RuntimeException implements 
     public static function create(): self
     {
         return new self(
-            'No active StorageContext is currently set. Wrap execution in DomainContext::using($domain, $capability, fn() => ... ) or call DomainContext::setCurrent($domain, $capability).'
+            "[PROBLEM] No active StorageContext is currently set in the context stack. " .
+            "[CAUSE] An operation requiring an ambient domain storage context was invoked outside an active scope. " .
+            "[RESOLUTION] Wrap execution in DomainContext::using(\$domainSlug, \$contextSlug, fn() => ...) or call DomainContext::setCurrent(\$domainSlug, \$contextSlug)."
         );
     }
 }
