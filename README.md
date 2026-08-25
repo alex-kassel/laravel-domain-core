@@ -5,7 +5,7 @@
 [![PHPStan](https://img.shields.io/badge/PHPStan-Level%208-8b5cf6?style=for-the-badge&logo=php&logoColor=white)](RELEASE-GATE.md)
 [![PHP](https://img.shields.io/packagist/dependency-v/alex-kassel/laravel-domain-core/php?style=for-the-badge&logo=php&logoColor=white&color=777bb4)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![Downloads](https://img.shields.io/packagist/dt/alex-kassel/laravel-domain-core?style=for-the-badge&logo=packagist&logoColor=white&color=0284c7)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![License](https://img.shields.io/packagist/l/alex-kassel/laravel-domain-core?style=for-the-badge&color=0d9488)](LICENSE)
+[![License](https://img.shields.io/github/license/alex-kassel/laravel-domain-core?style=for-the-badge&color=0d9488)](LICENSE)
 
 A high-cohesion, enterprise platform foundation for Laravel applications. `alex-kassel/laravel-domain-core` unifies **Polyglot Domain & Storage Context Registration**, **Dynamic Multi-Database & S3/Filesystem/Redis Provisioning**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, and **Distributed Lock Management**.
 

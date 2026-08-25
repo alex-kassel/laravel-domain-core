@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.2] - 2026-08-25
+
+### Changed
+- Switched license badge to direct GitHub provider to ensure instant rendering across GitHub proxy caches.
+
+---
+
 ## [2.0.1] - 2026-08-25
 
 ### Changed
