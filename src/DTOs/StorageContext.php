@@ -21,9 +21,22 @@ final class StorageContext
         public readonly string $connectionName,
         public readonly string $tablePrefix = '',
         public readonly array $migrationPaths = [],
-        public readonly bool $autoCreateSqliteDatabase = true,
+        public readonly bool $autoCreateSqliteDatabase = false,
         public readonly array $extraOptions = [],
-    ) {}
+    ) {
+        $this->validateSlug('domainSlug', $this->domainSlug);
+        $this->validateSlug('contextSlug', $this->contextSlug);
+
+        if (trim($this->connectionName) === '') {
+            throw new \InvalidArgumentException('Database connection name cannot be empty.');
+        }
+
+        foreach ($this->migrationPaths as $path) {
+            if (!is_string($path) || trim($path) === '') {
+                throw new \InvalidArgumentException('Migration paths must be an array of non-empty strings.');
+            }
+        }
+    }
 
     public function getIdentityKey(): string
     {
@@ -40,10 +53,22 @@ final class StorageContext
             contextSlug: (string) ($data['contextSlug'] ?? $data['context_slug'] ?? ''),
             connectionName: (string) ($data['connectionName'] ?? $data['connection_name'] ?? ''),
             tablePrefix: (string) ($data['tablePrefix'] ?? $data['table_prefix'] ?? ''),
-            migrationPaths: (array) ($data['migrationPaths'] ?? $data['migration_paths'] ?? []),
-            autoCreateSqliteDatabase: (bool) ($data['autoCreateSqliteDatabase'] ?? $data['auto_create_sqlite_database'] ?? true),
+            migrationPaths: array_values(array_filter(
+                (array) ($data['migrationPaths'] ?? $data['migration_paths'] ?? []),
+                static fn($path) => is_string($path) && trim($path) !== ''
+            )),
+            autoCreateSqliteDatabase: (bool) ($data['autoCreateSqliteDatabase'] ?? $data['auto_create_sqlite_database'] ?? false),
             extraOptions: (array) ($data['extraOptions'] ?? $data['extra_options'] ?? []),
         );
+    }
+
+    private function validateSlug(string $field, string $value): void
+    {
+        if (trim($value) === '' || !preg_match('/^[a-z0-9\-_]+$/i', $value)) {
+            throw new \InvalidArgumentException(
+                "Invalid {$field} '{$value}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
+            );
+        }
     }
 
     /**

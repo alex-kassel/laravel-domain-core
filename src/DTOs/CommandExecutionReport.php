@@ -8,12 +8,10 @@ use AlexKassel\DomainCore\Enums\ExecutionStatus;
 
 final class CommandExecutionReport
 {
-    public readonly ExecutionStatus $status;
-
     /**
      * @param string $domainSlug
      * @param string $componentKey
-     * @param ExecutionStatus|string $status
+     * @param ExecutionStatus $status
      * @param int $itemsProcessed
      * @param float $durationSeconds
      * @param string|null $message
@@ -22,13 +20,18 @@ final class CommandExecutionReport
     public function __construct(
         public readonly string $domainSlug,
         public readonly string $componentKey,
-        ExecutionStatus|string $status = ExecutionStatus::SUCCESS,
+        public readonly ExecutionStatus $status = ExecutionStatus::SUCCESS,
         public readonly int $itemsProcessed = 0,
         public readonly float $durationSeconds = 0.0,
         public readonly ?string $message = null,
         public readonly array $extraMetrics = [],
     ) {
-        $this->status = is_string($status) ? (ExecutionStatus::tryFrom($status) ?? ExecutionStatus::FAILED) : $status;
+        if (trim($this->domainSlug) === '') {
+            throw new \InvalidArgumentException('Domain slug cannot be empty in execution report.');
+        }
+        if (trim($this->componentKey) === '') {
+            throw new \InvalidArgumentException('Component key cannot be empty in execution report.');
+        }
     }
 
     public function isSuccess(): bool

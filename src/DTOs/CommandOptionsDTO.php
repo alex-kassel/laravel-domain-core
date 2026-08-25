@@ -13,6 +13,7 @@ final class CommandOptionsDTO
      * @param string|null $context
      * @param bool $force
      * @param bool $dryRun
+     * @param int $lockTtl Lock TTL in seconds (default: 300)
      * @param array<string, mixed> $extraOptions
      */
     public function __construct(
@@ -22,8 +23,13 @@ final class CommandOptionsDTO
         public readonly ?string $context = null,
         public readonly bool $force = false,
         public readonly bool $dryRun = false,
+        public readonly int $lockTtl = 300,
         public readonly array $extraOptions = [],
-    ) {}
+    ) {
+        if ($this->lockTtl <= 0) {
+            throw new \InvalidArgumentException('Lock TTL must be greater than zero seconds.');
+        }
+    }
 
     /**
      * @param array<string, mixed> $input
@@ -32,13 +38,15 @@ final class CommandOptionsDTO
     {
         $parseList = static function (mixed $value): array {
             if (is_array($value)) {
-                return array_values(array_filter(array_map('trim', $value)));
+                return array_values(array_filter(array_map('trim', $value), static fn($v) => is_string($v) && $v !== ''));
             }
             if (is_string($value) && trim($value) !== '') {
-                return array_values(array_filter(array_map('trim', explode(',', $value))));
+                return array_values(array_filter(array_map('trim', explode(',', $value)), static fn($v) => $v !== ''));
             }
             return [];
         };
+
+        $rawLockTtl = $input['lock-ttl'] ?? $input['lock_ttl'] ?? $input['lockTtl'] ?? 300;
 
         return new self(
             all: (bool) ($input['all'] ?? false),
@@ -47,6 +55,7 @@ final class CommandOptionsDTO
             context: isset($input['context']) && trim((string) $input['context']) !== '' ? trim((string) $input['context']) : null,
             force: (bool) ($input['force'] ?? false),
             dryRun: (bool) ($input['dry-run'] ?? $input['dry_run'] ?? false),
+            lockTtl: is_numeric($rawLockTtl) ? max(1, (int) $rawLockTtl) : 300,
             extraOptions: (array) ($input['extraOptions'] ?? $input['extra_options'] ?? []),
         );
     }

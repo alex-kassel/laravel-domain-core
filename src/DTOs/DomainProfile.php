@@ -17,10 +17,40 @@ final class DomainProfile
         public readonly string $name,
         public array $contexts = [],
         public array $metadata = [],
-    ) {}
+    ) {
+        if (trim($this->slug) === '' || !preg_match('/^[a-z0-9\-_]+$/i', $this->slug)) {
+            throw new \InvalidArgumentException(
+                "Invalid domain slug '{$this->slug}'. Slug must be a non-empty string containing only alphanumeric characters, dashes, and underscores."
+            );
+        }
+
+        if (trim($this->name) === '') {
+            throw new \InvalidArgumentException('Domain name cannot be empty.');
+        }
+
+        $validatedContexts = [];
+        foreach ($this->contexts as $context) {
+            if (!$context instanceof StorageContext) {
+                throw new \InvalidArgumentException('Contexts array must contain only StorageContext instances.');
+            }
+            if ($context->domainSlug !== $this->slug) {
+                throw new \InvalidArgumentException(
+                    "Cannot assign storage context for domain '{$context->domainSlug}' to domain profile '{$this->slug}'."
+                );
+            }
+            $validatedContexts[$context->contextSlug] = $context;
+        }
+        $this->contexts = $validatedContexts;
+    }
 
     public function addContext(StorageContext $context): self
     {
+        if ($context->domainSlug !== $this->slug) {
+            throw new \InvalidArgumentException(
+                "Cannot add storage context for domain '{$context->domainSlug}' to domain profile '{$this->slug}'."
+            );
+        }
+
         $this->contexts[$context->contextSlug] = $context;
         return $this;
     }
@@ -49,8 +79,9 @@ final class DomainProfile
     public static function fromArray(array $data): self
     {
         $contexts = [];
-        foreach ((array) ($data['contexts'] ?? []) as $contextSlug => $ctxData) {
-            $contexts[$contextSlug] = $ctxData instanceof StorageContext ? $ctxData : StorageContext::fromArray($ctxData);
+        foreach ((array) ($data['contexts'] ?? []) as $ctxData) {
+            $ctx = $ctxData instanceof StorageContext ? $ctxData : StorageContext::fromArray((array) $ctxData);
+            $contexts[$ctx->contextSlug] = $ctx;
         }
 
         return new self(

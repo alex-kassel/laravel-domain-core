@@ -8,15 +8,13 @@ use AlexKassel\DomainCore\Enums\MigrationStatus;
 
 final class MigrationReport
 {
-    public readonly MigrationStatus $status;
-
     /**
      * @param string $domainSlug
      * @param string $contextSlug
      * @param string $connectionName
      * @param array<int, string> $executedMigrations
      * @param float $durationSeconds
-     * @param MigrationStatus|string $status
+     * @param MigrationStatus $status
      * @param string|null $errorMessage
      */
     public function __construct(
@@ -25,10 +23,15 @@ final class MigrationReport
         public readonly string $connectionName,
         public readonly array $executedMigrations = [],
         public readonly float $durationSeconds = 0.0,
-        MigrationStatus|string $status = MigrationStatus::SUCCESS,
+        public readonly MigrationStatus $status = MigrationStatus::SUCCESS,
         public readonly ?string $errorMessage = null,
     ) {
-        $this->status = is_string($status) ? (MigrationStatus::tryFrom($status) ?? MigrationStatus::FAILED) : $status;
+        if (trim($this->domainSlug) === '') {
+            throw new \InvalidArgumentException('Domain slug cannot be empty in migration report.');
+        }
+        if (trim($this->contextSlug) === '') {
+            throw new \InvalidArgumentException('Context slug cannot be empty in migration report.');
+        }
     }
 
     public function isSuccess(): bool
