@@ -3,7 +3,7 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core.svg?style=flat-square)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![License](https://img.shields.io/packagist/l/alex-kassel/laravel-domain-core.svg?style=flat-square)](LICENSE)
 
-A high-cohesion platform foundation package for Laravel 11.x and 12.x applications. `alex-kassel/laravel-domain-core` provides **Domain & Storage Context Registration**, **Dynamic Multi-Database Provisioning & Migrations**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Actionable Diagnostic Exceptions**, and **Child Package Scaffolding**.
+A high-cohesion platform foundation package for Laravel 11.x, 12.x, and 13.x applications. `alex-kassel/laravel-domain-core` provides **Domain & Storage Context Registration**, **Dynamic Multi-Database Provisioning & Migrations**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Actionable Diagnostic Exceptions**, and **Child Package Scaffolding**.
 
 ---
 
