@@ -1,10 +1,9 @@
 # Laravel Domain Core (v2.0)
 
-[![Audited by Laravel Package Audit](https://img.shields.io/badge/Audit-360%C2%B0%20Verified-10b981?style=for-the-badge&logo=shield)](RELEASE-GATE.md)
+[![Audited by Laravel Package Audit](https://img.shields.io/badge/Audited%20by-Laravel%20Package%20Audit-10b981?style=for-the-badge&logo=shield)](RELEASE-GATE.md)
 [![Latest Version](https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core?style=for-the-badge&logo=packagist&logoColor=white&color=f59e0b)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
-[![Tests](https://img.shields.io/github/actions/workflow/status/alex-kassel/laravel-domain-core/tests.yml?branch=main&style=for-the-badge&logo=github&logoColor=white&label=tests&color=10b981)](https://github.com/alex-kassel/laravel-domain-core/actions)
 [![PHPStan](https://img.shields.io/badge/PHPStan-Level%208-8b5cf6?style=for-the-badge&logo=php&logoColor=white)](RELEASE-GATE.md)
-[![PHP](https://img.shields.io/packagist/dependency-v/alex-kassel/laravel-domain-core/php?style=for-the-badge&logo=php&logoColor=white&color=4f46e5)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
+[![PHP](https://img.shields.io/packagist/dependency-v/alex-kassel/laravel-domain-core/php?style=for-the-badge&logo=php&logoColor=white&color=777bb4)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![Downloads](https://img.shields.io/packagist/dt/alex-kassel/laravel-domain-core?style=for-the-badge&logo=packagist&logoColor=white&color=0284c7)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![License](https://img.shields.io/packagist/l/alex-kassel/laravel-domain-core?style=for-the-badge&color=0d9488)](LICENSE)
 
