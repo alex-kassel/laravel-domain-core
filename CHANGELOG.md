@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-08-25
+
+### Changed
+- Standardized `README.md` and repository metadata strictly adhering to canonical package documentation guidelines.
+- Optimized CI workflows and verified native Packagist auto-sync integration.
+
+---
+
 ## [2.0.0] - 2026-08-25
 
 ### Added
