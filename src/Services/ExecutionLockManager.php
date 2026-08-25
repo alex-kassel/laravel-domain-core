@@ -23,7 +23,7 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
         string $domainSlug,
         string $componentKey,
         Closure $callback,
-        int $ttlSeconds = 3600,
+        int $ttlSeconds = 300,
         bool $force = false
     ): bool {
         $lockKey = $this->formatLockKey($domainSlug, $componentKey);
@@ -45,6 +45,18 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
 
         if (!$acquired) {
             return false; // Lock occupied, skipped
+        }
+
+        // Register POSIX signal handling on supported platforms (Linux/macOS)
+        $hasPcntl = extension_loaded('pcntl') && function_exists('pcntl_signal') && function_exists('pcntl_async_signals');
+        if ($hasPcntl) {
+            pcntl_async_signals(true);
+            $signalHandler = function () use ($domainSlug, $componentKey) {
+                $this->releaseLock($domainSlug, $componentKey);
+                exit(1);
+            };
+            pcntl_signal(SIGTERM, $signalHandler);
+            pcntl_signal(SIGINT, $signalHandler);
         }
 
         try {
@@ -79,7 +91,20 @@ final class ExecutionLockManager implements ExecutionLockManagerInterface
     {
         $lockKey = $this->formatLockKey($domainSlug, $componentKey);
 
-        return $this->cache->has($lockKey);
+        try {
+            $lock = method_exists($this->cache, 'lock')
+                ? $this->cache->lock($lockKey, 1)
+                : $this->cache->getStore()->lock($lockKey, 1);
+
+            if ($lock->get()) {
+                $lock->release();
+                return false;
+            }
+
+            return true;
+        } catch (Throwable) {
+            return false;
+        }
     }
 
     private function formatLockKey(string $domainSlug, string $componentKey): string

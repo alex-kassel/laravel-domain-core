@@ -10,6 +10,9 @@ use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 use AlexKassel\DomainCore\DTOs\MigrationReport;
 use AlexKassel\DomainCore\DTOs\StorageContext;
 use AlexKassel\DomainCore\Enums\MigrationStatus;
+use AlexKassel\DomainCore\Exceptions\DomainNotFoundException;
+use AlexKassel\DomainCore\Exceptions\MigrationExecutionException;
+use AlexKassel\DomainCore\Exceptions\StorageContextNotFoundException;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Migrations\DatabaseMigrationRepository;
 use Illuminate\Database\Migrations\Migrator;
@@ -100,6 +103,14 @@ final class MigrationManager implements MigrationManagerInterface
      */
     private function resolveTargetContexts(?string $domainSlug, ?string $contextSlug): array
     {
+        if ($domainSlug !== null && !$this->registry->hasDomain($domainSlug)) {
+            throw DomainNotFoundException::forSlug($domainSlug);
+        }
+
+        if ($domainSlug !== null && $contextSlug !== null && !$this->registry->hasStorageContext($domainSlug, $contextSlug)) {
+            throw StorageContextNotFoundException::forContext($domainSlug, $contextSlug);
+        }
+
         $all = $this->registry->allStorageContexts();
 
         return array_values(array_filter($all, static function (StorageContext $context) use ($domainSlug, $contextSlug) {
@@ -120,6 +131,16 @@ final class MigrationManager implements MigrationManagerInterface
         try {
             $this->ensureDatabaseExists($context);
 
+            foreach ($context->migrationPaths as $path) {
+                if (!$this->files->isDirectory($path)) {
+                    throw MigrationExecutionException::forContext(
+                        $context->domainSlug,
+                        $context->contextSlug,
+                        "Migration directory [{$path}] does not exist on filesystem."
+                    );
+                }
+            }
+
             $migrator = $this->createMigratorForContext($context);
 
             // Prepare migration repository table
@@ -132,13 +153,11 @@ final class MigrationManager implements MigrationManagerInterface
                 $context->domainSlug,
                 $context->contextSlug,
                 function () use ($migrator, $context, $force, $pretend) {
-                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
-
-                    if (empty($existingPaths)) {
+                    if (empty($context->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->run($existingPaths, ['pretend' => $pretend, 'step' => false]);
+                    return $migrator->run($context->migrationPaths, ['pretend' => $pretend, 'step' => false]);
                 }
             );
 
@@ -173,6 +192,17 @@ final class MigrationManager implements MigrationManagerInterface
 
         try {
             $this->ensureDatabaseExists($context);
+
+            foreach ($context->migrationPaths as $path) {
+                if (!$this->files->isDirectory($path)) {
+                    throw MigrationExecutionException::forContext(
+                        $context->domainSlug,
+                        $context->contextSlug,
+                        "Migration directory [{$path}] does not exist on filesystem."
+                    );
+                }
+            }
+
             $migrator = $this->createMigratorForContext($context);
 
             if (!$migrator->repositoryExists()) {
@@ -190,13 +220,11 @@ final class MigrationManager implements MigrationManagerInterface
                 $context->domainSlug,
                 $context->contextSlug,
                 function () use ($migrator, $context, $step) {
-                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
-
-                    if (empty($existingPaths)) {
+                    if (empty($context->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->rollback($existingPaths, ['step' => $step]);
+                    return $migrator->rollback($context->migrationPaths, ['step' => $step]);
                 }
             );
 
@@ -227,6 +255,17 @@ final class MigrationManager implements MigrationManagerInterface
 
         try {
             $this->ensureDatabaseExists($context);
+
+            foreach ($context->migrationPaths as $path) {
+                if (!$this->files->isDirectory($path)) {
+                    throw MigrationExecutionException::forContext(
+                        $context->domainSlug,
+                        $context->contextSlug,
+                        "Migration directory [{$path}] does not exist on filesystem."
+                    );
+                }
+            }
+
             $migrator = $this->createMigratorForContext($context);
 
             if (!$migrator->repositoryExists()) {
@@ -244,13 +283,11 @@ final class MigrationManager implements MigrationManagerInterface
                 $context->domainSlug,
                 $context->contextSlug,
                 function () use ($migrator, $context) {
-                    $existingPaths = array_filter($context->migrationPaths, fn(string $path) => $this->files->isDirectory($path));
-
-                    if (empty($existingPaths)) {
+                    if (empty($context->migrationPaths)) {
                         return [];
                     }
 
-                    return $migrator->reset($existingPaths);
+                    return $migrator->reset($context->migrationPaths);
                 }
             );
 
@@ -279,17 +316,45 @@ final class MigrationManager implements MigrationManagerInterface
     {
         $this->ensureDatabaseExists($context);
 
-        try {
-            Schema::connection($context->connectionName)->dropAllTables();
-            Schema::connection($context->connectionName)->dropAllViews();
-        } catch (Throwable) {
-            // Ignore if tables don't exist yet
+        if ($context->tablePrefix !== '') {
+            $connection = $this->app->make('db')->connection($context->connectionName);
+            $schema = Schema::connection($context->connectionName);
+            $tables = $schema->getTableListing();
+            $contextTables = array_filter($tables, static fn(string $tbl) => str_starts_with($tbl, $context->tablePrefix));
+
+            if (!empty($contextTables)) {
+                $driver = $connection->getDriverName();
+                if ($driver === 'sqlite') {
+                    $connection->statement('PRAGMA foreign_keys = OFF;');
+                } elseif ($driver === 'mysql') {
+                    $connection->statement('SET FOREIGN_KEY_CHECKS = 0;');
+                } elseif ($driver === 'pgsql') {
+                    $connection->statement('SET CONSTRAINTS ALL DEFERRED;');
+                }
+
+                foreach ($contextTables as $tbl) {
+                    $schema->dropIfExists($tbl);
+                }
+
+                if ($driver === 'sqlite') {
+                    $connection->statement('PRAGMA foreign_keys = ON;');
+                } elseif ($driver === 'mysql') {
+                    $connection->statement('SET FOREIGN_KEY_CHECKS = 1;');
+                }
+            }
+            return;
         }
+
+        Schema::connection($context->connectionName)->dropAllTables();
+        Schema::connection($context->connectionName)->dropAllViews();
     }
 
     private function createMigratorForContext(StorageContext $context): Migrator
     {
-        $table = 'migrations';
+        $table = $context->tablePrefix !== ''
+            ? "{$context->tablePrefix}migrations"
+            : "migrations_{$context->domainSlug}_{$context->contextSlug}";
+
         $repository = new DatabaseMigrationRepository($this->app->make('db'), $table);
         $repository->setSource($context->connectionName);
 

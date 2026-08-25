@@ -130,6 +130,7 @@ final class {$studlyDomain}ServiceProvider extends ServiceProvider
                 connectionName: \$settings['connection'] ?? 'sqlite_{$domain}_{\$contextSlug}',
                 tablePrefix: \$settings['table_prefix'] ?? '{$domain}_{\$contextSlug}_',
                 migrationPaths: \$settings['migrations'] ?? [],
+                autoCreateSqliteDatabase: (bool) (\$settings['auto_create_sqlite_database'] ?? true),
             ));
         }
     }

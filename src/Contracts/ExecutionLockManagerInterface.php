@@ -23,7 +23,7 @@ interface ExecutionLockManagerInterface
         string $domainSlug,
         string $componentKey,
         Closure $callback,
-        int $ttlSeconds = 3600,
+        int $ttlSeconds = 300,
         bool $force = false
     ): bool;
 

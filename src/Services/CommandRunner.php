@@ -39,9 +39,10 @@ final class CommandRunner implements CommandRunnerInterface
         } elseif (!empty($options->domains)) {
             $targets = [];
             foreach ($options->domains as $slug) {
-                if ($this->registry->hasDomain($slug)) {
-                    $targets[] = $this->registry->getDomain($slug);
+                if (!$this->registry->hasDomain($slug)) {
+                    throw DomainNotFoundException::forSlug($slug);
                 }
+                $targets[] = $this->registry->getDomain($slug);
             }
         } else {
             $targets = array_values($all);
@@ -88,6 +89,7 @@ final class CommandRunner implements CommandRunnerInterface
                         $itemsProcessed = $result;
                     }
                 },
+                ttlSeconds: $options->lockTtl,
                 force: $options->force
             );
 

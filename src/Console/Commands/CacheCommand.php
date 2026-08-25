@@ -23,7 +23,14 @@ final class CacheCommand extends Command
         $compiled = $registry->compileCache();
         $export = '<?php return ' . var_export($compiled, true) . ';' . PHP_EOL;
 
-        $files->put($cachePath, $export);
+        $dir = dirname($cachePath);
+        if (!$files->isDirectory($dir)) {
+            $files->makeDirectory($dir, 0755, true, true);
+        }
+
+        $tmpPath = $cachePath . '.' . uniqid('domains_', true) . '.tmp';
+        $files->put($tmpPath, $export);
+        $files->move($tmpPath, $cachePath);
 
         $this->info("Domain contexts cached successfully to [{$cachePath}].");
 
