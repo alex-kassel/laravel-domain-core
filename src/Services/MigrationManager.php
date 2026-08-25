@@ -155,25 +155,33 @@ final class MigrationManager implements MigrationManagerInterface
                 }
             }
 
-            $migrator = $this->createMigratorForContext($context);
+            $connection = $this->app->make('db')->connection($db->connectionName);
+            $previousPrefix = $connection->getTablePrefix();
+            $connection->setTablePrefix($db->tablePrefix);
 
-            // Prepare migration repository table
-            if (!$migrator->repositoryExists()) {
-                $migrator->getRepository()->createRepository();
-            }
+            try {
+                $migrator = $this->createMigratorForContext($context);
 
-            // Run migrations in ambient scope
-            $ran = $this->contextManager->using(
-                $context->domainSlug,
-                $context->contextSlug,
-                function () use ($migrator, $db, $force, $pretend) {
-                    if (empty($db->migrationPaths)) {
-                        return [];
-                    }
-
-                    return $migrator->run($db->migrationPaths, ['pretend' => $pretend, 'step' => false]);
+                // Prepare migration repository table
+                if (!$migrator->repositoryExists()) {
+                    $migrator->getRepository()->createRepository();
                 }
-            );
+
+                // Run migrations in ambient scope
+                $ran = $this->contextManager->using(
+                    $context->domainSlug,
+                    $context->contextSlug,
+                    function () use ($migrator, $db, $force, $pretend) {
+                        if (empty($db->migrationPaths)) {
+                            return [];
+                        }
+
+                        return $migrator->run($db->migrationPaths, ['pretend' => $pretend, 'step' => false]);
+                    }
+                );
+            } finally {
+                $connection->setTablePrefix($previousPrefix);
+            }
 
             $duration = round(microtime(true) - $startTime, 4);
 
@@ -218,30 +226,38 @@ final class MigrationManager implements MigrationManagerInterface
                 }
             }
 
-            $migrator = $this->createMigratorForContext($context);
+            $connection = $this->app->make('db')->connection($db->connectionName);
+            $previousPrefix = $connection->getTablePrefix();
+            $connection->setTablePrefix($db->tablePrefix);
 
-            if (!$migrator->repositoryExists()) {
-                return new MigrationReport(
-                    domainSlug: $context->domainSlug,
-                    contextSlug: $context->contextSlug,
-                    connectionName: $db->connectionName,
-                    executedMigrations: [],
-                    durationSeconds: round(microtime(true) - $startTime, 4),
-                    status: MigrationStatus::NO_OP
-                );
-            }
+            try {
+                $migrator = $this->createMigratorForContext($context);
 
-            $rolledBack = $this->contextManager->using(
-                $context->domainSlug,
-                $context->contextSlug,
-                function () use ($migrator, $db, $step) {
-                    if (empty($db->migrationPaths)) {
-                        return [];
-                    }
-
-                    return $migrator->rollback($db->migrationPaths, ['step' => $step]);
+                if (!$migrator->repositoryExists()) {
+                    return new MigrationReport(
+                        domainSlug: $context->domainSlug,
+                        contextSlug: $context->contextSlug,
+                        connectionName: $db->connectionName,
+                        executedMigrations: [],
+                        durationSeconds: round(microtime(true) - $startTime, 4),
+                        status: MigrationStatus::NO_OP
+                    );
                 }
-            );
+
+                $rolledBack = $this->contextManager->using(
+                    $context->domainSlug,
+                    $context->contextSlug,
+                    function () use ($migrator, $db, $step) {
+                        if (empty($db->migrationPaths)) {
+                            return [];
+                        }
+
+                        return $migrator->rollback($db->migrationPaths, ['step' => $step]);
+                    }
+                );
+            } finally {
+                $connection->setTablePrefix($previousPrefix);
+            }
 
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
@@ -282,30 +298,38 @@ final class MigrationManager implements MigrationManagerInterface
                 }
             }
 
-            $migrator = $this->createMigratorForContext($context);
+            $connection = $this->app->make('db')->connection($db->connectionName);
+            $previousPrefix = $connection->getTablePrefix();
+            $connection->setTablePrefix($db->tablePrefix);
 
-            if (!$migrator->repositoryExists()) {
-                return new MigrationReport(
-                    domainSlug: $context->domainSlug,
-                    contextSlug: $context->contextSlug,
-                    connectionName: $db->connectionName,
-                    executedMigrations: [],
-                    durationSeconds: round(microtime(true) - $startTime, 4),
-                    status: MigrationStatus::NO_OP
-                );
-            }
+            try {
+                $migrator = $this->createMigratorForContext($context);
 
-            $rolledBack = $this->contextManager->using(
-                $context->domainSlug,
-                $context->contextSlug,
-                function () use ($migrator, $db) {
-                    if (empty($db->migrationPaths)) {
-                        return [];
-                    }
-
-                    return $migrator->reset($db->migrationPaths);
+                if (!$migrator->repositoryExists()) {
+                    return new MigrationReport(
+                        domainSlug: $context->domainSlug,
+                        contextSlug: $context->contextSlug,
+                        connectionName: $db->connectionName,
+                        executedMigrations: [],
+                        durationSeconds: round(microtime(true) - $startTime, 4),
+                        status: MigrationStatus::NO_OP
+                    );
                 }
-            );
+
+                $rolledBack = $this->contextManager->using(
+                    $context->domainSlug,
+                    $context->contextSlug,
+                    function () use ($migrator, $db) {
+                        if (empty($db->migrationPaths)) {
+                            return [];
+                        }
+
+                        return $migrator->reset($db->migrationPaths);
+                    }
+                );
+            } finally {
+                $connection->setTablePrefix($previousPrefix);
+            }
 
             return new MigrationReport(
                 domainSlug: $context->domainSlug,
@@ -332,45 +356,68 @@ final class MigrationManager implements MigrationManagerInterface
     {
         $this->ensureDatabaseExists($context);
         $db = $context->asDatabase();
+        $connection = $this->app->make('db')->connection($db->connectionName);
+        $driver = $connection->getDriverName();
 
-        if ($db->tablePrefix !== '') {
-            $connection = $this->app->make('db')->connection($db->connectionName);
-            $schema = Schema::connection($db->connectionName);
-            $tables = $schema->getTableListing();
-            $contextTables = array_filter($tables, static fn(string $tbl) => str_starts_with($tbl, $db->tablePrefix));
-
-            if (!empty($contextTables)) {
-                $driver = $connection->getDriverName();
-                if ($driver === 'sqlite') {
-                    $connection->statement('PRAGMA foreign_keys = OFF;');
-                } elseif ($driver === 'mysql') {
-                    $connection->statement('SET FOREIGN_KEY_CHECKS = 0;');
-                } elseif ($driver === 'pgsql') {
-                    $connection->statement('SET CONSTRAINTS ALL DEFERRED;');
+        if ($driver === 'sqlite') {
+            $connection->statement('PRAGMA foreign_keys = OFF;');
+            /** @var array<int, object{name: string, type: string}> $rows */
+            $rows = $connection->select("SELECT name, type FROM sqlite_master WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%'");
+            foreach ($rows as $row) {
+                $name = $row->name;
+                $type = strtoupper((string) $row->type);
+                if ($db->tablePrefix === '' || str_starts_with($name, $db->tablePrefix)) {
+                    $connection->statement("DROP {$type} IF EXISTS \"{$name}\"");
                 }
+            }
+            $connection->statement('PRAGMA foreign_keys = ON;');
+            return;
+        }
 
-                foreach ($contextTables as $tbl) {
-                    $schema->dropIfExists($tbl);
+        if ($driver === 'mysql') {
+            $connection->statement('SET FOREIGN_KEY_CHECKS = 0;');
+            if ($db->tablePrefix !== '') {
+                /** @var array<int, object{name: string}> $rows */
+                $rows = $connection->select("SHOW TABLES LIKE '{$db->tablePrefix}%'");
+                foreach ($rows as $row) {
+                    $vals = array_values((array) $row);
+                    $name = (string) $vals[0];
+                    $connection->statement("DROP TABLE IF EXISTS `{$name}`");
                 }
+            } else {
+                $schema = Schema::connection($db->connectionName);
+                $schema->dropAllViews();
+                $schema->dropAllTables();
+            }
+            $connection->statement('SET FOREIGN_KEY_CHECKS = 1;');
+            return;
+        }
 
-                if ($driver === 'sqlite') {
-                    $connection->statement('PRAGMA foreign_keys = ON;');
-                } elseif ($driver === 'mysql') {
-                    $connection->statement('SET FOREIGN_KEY_CHECKS = 1;');
+        if ($driver === 'pgsql') {
+            $connection->statement('SET CONSTRAINTS ALL DEFERRED;');
+            if ($db->tablePrefix !== '') {
+                /** @var array<int, object{tablename: string}> $rows */
+                $rows = $connection->select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE '{$db->tablePrefix}%'");
+                foreach ($rows as $row) {
+                    $name = $row->tablename;
+                    $connection->statement("DROP TABLE IF EXISTS \"{$name}\" CASCADE");
                 }
+            } else {
+                $schema = Schema::connection($db->connectionName);
+                $schema->dropAllViews();
+                $schema->dropAllTables();
             }
             return;
         }
 
         Schema::connection($db->connectionName)->dropAllTables();
-        Schema::connection($db->connectionName)->dropAllViews();
     }
 
     private function createMigratorForContext(StorageContext $context): Migrator
     {
         $db = $context->asDatabase();
         $table = $db->tablePrefix !== ''
-            ? "{$db->tablePrefix}migrations"
+            ? 'migrations'
             : "migrations_{$context->domainSlug}_{$context->contextSlug}";
 
         $repository = new DatabaseMigrationRepository($this->app->make('db'), $table);
