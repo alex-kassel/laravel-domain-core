@@ -16,7 +16,7 @@ final class ConsoleCommandsTest extends TestCase
         $registry = $this->app->make(DomainRegistryInterface::class);
 
         $registry->registerDomain('domain-one', 'Domain One');
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'primary',
             connectionName: 'sqlite_one_primary',
@@ -26,9 +26,9 @@ final class ConsoleCommandsTest extends TestCase
         $this->artisan('domain:status')
             ->assertSuccessful()
             ->expectsTable(
-                ['Domain Slug', 'Domain Name', 'Context', 'Connection', 'Table Prefix', 'Migration Paths'],
+                ['Domain Slug', 'Domain Name', 'Context', 'Driver', 'Connection / Disk', 'Table Prefix / Path', 'Migrations'],
                 [
-                    ['domain-one', 'Domain One', '<info>primary</info>', 'sqlite_one_primary', 'one_primary_', 0],
+                    ['domain-one', 'Domain One', '<info>primary</info>', 'Database', 'sqlite_one_primary', 'one_primary_', '0'],
                 ]
             );
     }
@@ -38,7 +38,7 @@ final class ConsoleCommandsTest extends TestCase
         $registry = $this->app->make(DomainRegistryInterface::class);
 
         $registry->registerDomain('domain-one', 'Domain One');
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'primary',
             connectionName: 'sqlite_one_primary',
@@ -46,7 +46,7 @@ final class ConsoleCommandsTest extends TestCase
         ));
 
         $registry->registerDomain('domain-two', 'Domain Two');
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-two',
             contextSlug: 'primary',
             connectionName: 'sqlite_two_primary',
@@ -58,10 +58,10 @@ final class ConsoleCommandsTest extends TestCase
         $this->artisan('domain:status --domains=domain-one,domain-two')
             ->assertSuccessful()
             ->expectsTable(
-                ['Domain Slug', 'Domain Name', 'Context', 'Connection', 'Table Prefix', 'Migration Paths'],
+                ['Domain Slug', 'Domain Name', 'Context', 'Driver', 'Connection / Disk', 'Table Prefix / Path', 'Migrations'],
                 [
-                    ['domain-one', 'Domain One', '<info>primary</info>', 'sqlite_one_primary', 'one_primary_', 0],
-                    ['domain-two', 'Domain Two', '<info>primary</info>', 'sqlite_two_primary', 'two_primary_', 0],
+                    ['domain-one', 'Domain One', '<info>primary</info>', 'Database', 'sqlite_one_primary', 'one_primary_', '0'],
+                    ['domain-two', 'Domain Two', '<info>primary</info>', 'Database', 'sqlite_two_primary', 'two_primary_', '0'],
                 ]
             );
     }

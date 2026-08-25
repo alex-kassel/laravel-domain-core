@@ -26,7 +26,7 @@ final class DomainContextManagerTest extends TestCase
         $provisioner = $this->app->make(DatabaseProvisioner::class);
         $this->manager = new DomainContextManager($this->registry, $provisioner);
 
-        $this->registry->registerStorageContext(new StorageContext(
+        $this->registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'primary',
             connectionName: 'sqlite_one_primary',
@@ -34,12 +34,19 @@ final class DomainContextManagerTest extends TestCase
             autoCreateSqliteDatabase: true,
         ));
 
-        $this->registry->registerStorageContext(new StorageContext(
+        $this->registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'archive',
             connectionName: 'sqlite_one_archive',
             tablePrefix: 'one_archive_',
             autoCreateSqliteDatabase: true,
+        ));
+
+        $this->registry->registerStorageContext(StorageContext::filesystem(
+            domainSlug: 'domain-one',
+            contextSlug: 'files',
+            disk: 'local',
+            basePath: 'domain-one/files'
         ));
     }
 
@@ -63,13 +70,28 @@ final class DomainContextManagerTest extends TestCase
             self::assertTrue($this->manager->hasCurrent());
             self::assertSame('domain-one', $ctx->domainSlug);
             self::assertSame('primary', $ctx->contextSlug);
-            self::assertSame('one_primary_', $this->manager->current()->tablePrefix);
+            self::assertSame('one_primary_', $this->manager->database()->tablePrefix);
 
             return 'result_123';
         });
 
         self::assertSame('result_123', $executed);
         self::assertFalse($this->manager->hasCurrent());
+    }
+
+    public function testTypedStorageGettersInActiveScope(): void
+    {
+        // Database scope
+        $this->manager->using('domain-one', 'primary', function () {
+            self::assertSame('sqlite_one_primary', $this->manager->database()->connectionName);
+        });
+
+        // Filesystem scope
+        $this->manager->using('domain-one', 'files', function () {
+            self::assertSame('local', $this->manager->filesystem()->disk);
+            self::assertSame('domain-one/files', $this->manager->filesystem()->basePath);
+            self::assertInstanceOf(\Illuminate\Contracts\Filesystem\Filesystem::class, $this->manager->disk());
+        });
     }
 
     public function testSupportsNestedScopesWithLIFORestoration(): void
@@ -122,7 +144,7 @@ final class DomainContextManagerTest extends TestCase
 
     public function testThrowsStorageConnectionNotFoundExceptionWhenConnectionMissingAndAutoCreateDisabled(): void
     {
-        $this->registry->registerStorageContext(new StorageContext(
+        $this->registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-two',
             contextSlug: 'custom-db',
             connectionName: 'non_existent_connection',

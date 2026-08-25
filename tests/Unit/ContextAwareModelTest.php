@@ -36,7 +36,7 @@ final class ContextAwareModelTest extends TestCase
 
         $registry = $this->app->make(DomainRegistryInterface::class);
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'primary',
             connectionName: 'sqlite_domain_one_primary',
@@ -44,7 +44,7 @@ final class ContextAwareModelTest extends TestCase
             autoCreateSqliteDatabase: true,
         ));
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'archive',
             connectionName: 'sqlite_domain_one_archive',
@@ -52,12 +52,18 @@ final class ContextAwareModelTest extends TestCase
             autoCreateSqliteDatabase: true,
         ));
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-two',
             contextSlug: 'primary',
             connectionName: 'sqlite_domain_two_primary',
             tablePrefix: 'two_primary_',
             autoCreateSqliteDatabase: true,
+        ));
+
+        $registry->registerStorageContext(StorageContext::filesystem(
+            domainSlug: 'domain-one',
+            contextSlug: 'files',
+            disk: 'local'
         ));
     }
 
@@ -96,7 +102,7 @@ final class ContextAwareModelTest extends TestCase
         ]);
 
         $registry = $this->app->make(DomainRegistryInterface::class);
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'no-conn-prefix',
             connectionName: 'sqlite_no_conn_prefix',
@@ -116,6 +122,16 @@ final class ContextAwareModelTest extends TestCase
 
         $this->expectException(\AlexKassel\DomainCore\Exceptions\NoActiveStorageContextException::class);
         $model->getConnectionName();
+    }
+
+    public function testModelThrowsIncompatibleStorageExceptionInFilesystemScope(): void
+    {
+        $model = new DummyGenericItemModel();
+
+        $this->expectException(\AlexKassel\DomainCore\Exceptions\IncompatibleStorageException::class);
+        DomainContext::using('domain-one', 'files', function () use ($model) {
+            $model->getConnectionName();
+        });
     }
 
     public function testModelWithExplicitContextOverridesAmbientContext(): void

@@ -61,7 +61,7 @@ PHP;
 
         $registry = $this->app->make(DomainRegistryInterface::class);
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'primary',
             connectionName: 'sqlite_domain_one_primary',
@@ -69,7 +69,7 @@ PHP;
             migrationPaths: [$this->tempMigrationDir],
         ));
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'archive',
             connectionName: 'sqlite_domain_one_archive',
@@ -102,6 +102,37 @@ PHP;
         self::assertCount(2, $allReports);
     }
 
+    public function testMigrateSkipsFilesystemContextsInBulk(): void
+    {
+        $registry = $this->app->make(DomainRegistryInterface::class);
+        $registry->registerStorageContext(StorageContext::filesystem(
+            domainSlug: 'domain-one',
+            contextSlug: 'assets',
+            disk: 'local'
+        ));
+
+        $manager = $this->app->make(MigrationManagerInterface::class);
+        $allReports = $manager->migrate('domain-one', null, true);
+
+        // Still 2 database contexts migrated, filesystem context skipped
+        self::assertCount(2, $allReports);
+    }
+
+    public function testMigrateExplicitFilesystemContextThrowsIncompatibleStorageException(): void
+    {
+        $registry = $this->app->make(DomainRegistryInterface::class);
+        $registry->registerStorageContext(StorageContext::filesystem(
+            domainSlug: 'domain-one',
+            contextSlug: 'assets',
+            disk: 'local'
+        ));
+
+        $manager = $this->app->make(MigrationManagerInterface::class);
+
+        $this->expectException(\AlexKassel\DomainCore\Exceptions\IncompatibleStorageException::class);
+        $manager->migrate('domain-one', 'assets', true);
+    }
+
     public function testRollbackAcrossTargetContexts(): void
     {
         $manager = $this->app->make(MigrationManagerInterface::class);
@@ -120,7 +151,7 @@ PHP;
     public function testFailsWhenMigrationDirectoryDoesNotExist(): void
     {
         $registry = $this->app->make(DomainRegistryInterface::class);
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-one',
             contextSlug: 'missing-path-ctx',
             connectionName: 'sqlite_domain_one_primary',
@@ -157,7 +188,7 @@ PHP;
 
         $registry = $this->app->make(DomainRegistryInterface::class);
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-a',
             contextSlug: 'primary',
             connectionName: 'sqlite_shared_db',
@@ -165,7 +196,7 @@ PHP;
             migrationPaths: [$this->tempMigrationDir],
         ));
 
-        $registry->registerStorageContext(new StorageContext(
+        $registry->registerStorageContext(StorageContext::database(
             domainSlug: 'domain-b',
             contextSlug: 'primary',
             connectionName: 'sqlite_shared_db',
