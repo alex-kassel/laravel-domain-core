@@ -1,12 +1,17 @@
-<div align="center">
+<h1 align="center">🏛️ Laravel Domain Core</h1>
 
-# 🏛️ Laravel Domain Core
+<p align="center">
+  <strong>Polyglot domain storage contexts, dynamic multi-database provisioning, and ambient execution scoping</strong>
+</p>
 
-### Polyglot domain storage contexts, dynamic multi-database provisioning, and ambient execution scoping
-
-[Installation](#installation) • [Storage Contexts](#1-registering-domain-storage-contexts) • [Ambient Scopes](#2-ambient-execution-scopes) • [Commands](#commands) • [Release Gate](RELEASE-GATE.md) • [Changelog](CHANGELOG.md)
-
-<br>
+<p align="center">
+  <a href="#installation">Installation</a> •
+  <a href="#1-registering-domain-storage-contexts">Storage Contexts</a> •
+  <a href="#2-ambient-execution-scopes">Ambient Scopes</a> •
+  <a href="#commands">Commands</a> •
+  <a href="RELEASE-GATE.md">Release Gate</a> •
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
 <p align="center">
   <a href="RELEASE-GATE.md"><img src="https://img.shields.io/badge/Audit-Verified-10b981?logo=shield" alt="Audit Verified"></a>
@@ -15,8 +20,6 @@
   <a href="https://php.net"><img src="https://img.shields.io/badge/PHP-8.2+-777bb4?logo=php&logoColor=white" alt="PHP Support"></a>
   <a href="RELEASE-GATE.md"><img src="https://img.shields.io/badge/PHPStan-Level%20Max-8b5cf6?logo=php&logoColor=white" alt="PHPStan Level Max"></a>
 </p>
-
-</div>
 
 ---
 
