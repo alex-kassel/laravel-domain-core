@@ -1,41 +1,46 @@
-# Laravel Domain Core
+# Laravel Domain Core (v2.0)
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/alex-kassel/laravel-domain-core.svg?style=flat-square)](https://packagist.org/packages/alex-kassel/laravel-domain-core)
 [![License](https://img.shields.io/packagist/l/alex-kassel/laravel-domain-core.svg?style=flat-square)](LICENSE)
 
-A high-cohesion platform foundation package for Laravel 11.x, 12.x, and 13.x applications. `alex-kassel/laravel-domain-core` provides **Domain & Storage Context Registration**, **Dynamic Multi-Database Provisioning & Migrations**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Actionable Diagnostic Exceptions**, and **Child Package Scaffolding**.
+A high-cohesion, enterprise platform foundation for Laravel 11.x, 12.x, and 13.x applications. `alex-kassel/laravel-domain-core` provides **Polyglot Domain & Storage Context Registration**, **Dynamic Multi-Database & S3/Filesystem/Redis Provisioning**, **Context-Aware Base Eloquent Models**, **Standardized Operator CLI Execution**, **Distributed Lock Management**, **Actionable Diagnostic Exceptions**, and **Domain Package Scaffolding**.
 
 ---
 
-## Key Architectural Principles (Fail-Fast & Strict Discipline)
+## What's New in Architecture 2.0
 
-1. **Explicit over Implicit (No Silent Fallbacks):**  
-   - `autoCreateSqliteDatabase` is disabled (`false`) by default. Missing connections trigger actionable `StorageConnectionNotFoundException` immediately instead of silently creating local SQLite databases in production.
-   - Context slugs are mandatory (`$registry->getStorageContext('domain', 'primary')`) to avoid unintentional assumptions about default naming.
-2. **Context Isolation & Hijacking Protection:**  
-   - Models statically bound via `$explicitDomain` have absolute priority and can never be hijacked by ambient scopes (`DomainContext::using(...)`).
-   - Strict mode prevents domain models from querying the root Laravel database when invoked outside of an active domain context (`NoActiveStorageContextException`).
-3. **Shared Database & Migration Safety:**  
-   - Destructive operations (`domain:migrate --fresh`) in shared database setups only drop tables matching the domain's `$tablePrefix`, preserving other domain tables and host application tables.
-   - Migration history repositories are isolated dynamically per prefix/context (`{$tablePrefix}migrations`), preventing batch collisions.
-4. **Concurrency & High-Availability:**  
-   - Automated SQLite WAL mode (`journal_mode=WAL`) and `busy_timeout` (5000ms) configuration.
-   - Connection pool purging (`DB::purge`) on runtime dynamic reconfiguration.
-   - Atomic cache compilation for `domain:cache` to eliminate race conditions during deployment.
-   - Configurable lock TTLs with POSIX signal handlers (`SIGTERM`, `SIGINT`) to release execution locks upon worker shutdown.
+`laravel-domain-core` v2.0 introduces a clean separation between **Logical Business Contexts** (`StorageContext`) and **Physical Storage Mediums** (`StorageInterface`):
+
+```
+Domain Profile (e.g., 'automotive-leasing')
+└── StorageContext[] (e.g., 'scraping', 'normalizing', 'frontend', 'queue')
+    ├── DatabaseStorage   (connection: 'mysql_scraping', prefix: 'leasing_', migrations: [...])
+    ├── FileStorage       (disk: 's3', basePath: 'automotive-leasing/raw/')
+    └── RedisStorage      (connection: 'cache', keyPrefix: 'leasing:queue:')
+```
+
+### Key Highlights
+1. **Polyglot Persistence Support:** Register and manage relational databases (MySQL, PostgreSQL, SQLite), object storage/filesystems (Local, S3, MinIO), and in-memory caches (Redis) under a unified domain model.
+2. **First-Class IDE Autocomplete & Type Safety:** Strongly-typed Enum `StorageDriverType`, dedicated named constructors (`StorageContext::database()`, `StorageContext::filesystem()`, `StorageContext::redis()`), and downcasting helpers (`$context->asDatabase()`, `$context->asFilesystem()`).
+3. **Fail-Fast & Context Hijacking Protection:** Models statically bound to a domain cannot be hijacked by ambient scopes. Accessing mismatched storage drivers (e.g. running an Eloquent model inside a filesystem context) throws structured `IncompatibleStorageException`.
+4. **Isolated Shared-Database Migrations:** `php artisan domain:migrate --fresh` drops only domain-prefixed tables on shared connections, safeguarding neighboring tables.
 
 ---
 
 ## Subsystems & Architecture
 
-1. **Domain & Storage Context Registration (`DomainRegistryInterface`):** Strict registration, collision detection on mismatched configurations, deduplication, and atomic compile caching.
-2. **Unified Database Provisioning (`DatabaseProvisioner`):** Multi-database provisioning supporting verified connections for MySQL, PostgreSQL, SQLite (with WAL & busy timeout), and `DB::purge()` execution.
-3. **Dynamic Multi-Database Migrations (`MigrationManagerInterface`):** Multi-context migration manager with prefix-isolated `fresh` drops, scoped migration tables, and fail-fast validation for missing migration directories and unregistered domains.
-4. **Context-Aware Base Eloquent Models (`ContextAwareModel` & `HasDomainContextTrait`):** Base Eloquent models and traits that dynamically route database connections and table prefixes at runtime with explicit domain priority and strict context enforcement.
-5. **Standardized Operator CLI DX (`CommandRunnerInterface`):** Uniform Artisan command options (`--all`, `--domains`, `--except-domains`, `--context`, `--force`, `--dry-run`) with fail-fast domain validation.
-6. **Distributed Lock Management (`ExecutionLockManagerInterface`):** Reliable lock state checking across all cache/lock drivers (Redis, Database, etc.) with customizable TTL and POSIX signal trapping.
-7. **Actionable 3-Part Exceptions & Diagnostic Events:** Structured `[PROBLEM]`, `[CAUSE]`, and `[RESOLUTION]` messages paired with rich diagnostic events (`StorageConnectionMissing`, `CommandExecutionFailed`, `LockAcquisitionFailed`, `CommandRunSkippedDueToOverlap`).
-8. **Child Package Generator (`domain:make-domain`):** Scaffolds standardized domain package skeletons with clean directory structure, configuration, providers, and test setups.
+1. **Domain & Storage Context Registry (`DomainRegistryInterface`):** Registration, cross-domain collision detection, config deduplication, and atomic compile caching.
+2. **Physical Storage Abstractions (`AlexKassel\DomainCore\Storage`):**
+   - `DatabaseStorage`: Relational connections, table prefixes, migration paths, and SQLite WAL auto-provisioning.
+   - `FileStorage`: Laravel Filesystem disks and isolated base paths.
+   - `RedisStorage`: Redis connections and isolated key prefixes.
+3. **Unified Database Provisioning (`DatabaseProvisioner`):** Multi-database provisioning for MySQL, PostgreSQL, and SQLite (with automatic WAL mode, `busy_timeout=5000`, and `DB::purge()` on reconfiguration).
+4. **Dynamic Migrations (`MigrationManagerInterface`):** Multi-context migration manager with prefix-isolated table drops and automatic filtering of database-backed contexts.
+5. **Context-Aware Base Eloquent Models (`ContextAwareModel` & `HasDomainContextTrait`):** Dynamically route database connections and table prefixes at runtime with explicit domain priority.
+6. **Standardized Operator CLI DX (`CommandRunnerInterface`):** Uniform Artisan command flags (`--all`, `--domains`, `--except-domains`, `--context`, `--force`, `--dry-run`, `--lock-ttl`).
+7. **Distributed Lock Management (`ExecutionLockManagerInterface`):** Reliable lock state checking across all cache/lock drivers (Redis, Database, etc.) with customizable TTL and POSIX signal trapping (`SIGTERM`, `SIGINT`).
+8. **Actionable Diagnostic Exceptions:** Structured `[PROBLEM]`, `[CAUSE]`, and `[RESOLUTION]` messages paired with rich diagnostic events (`StorageConnectionMissing`, `CommandExecutionFailed`, `LockAcquisitionFailed`).
+9. **Child Package Generator (`domain:make-domain`):** Scaffolds standardized domain package skeletons.
 
 ---
 
@@ -55,7 +60,7 @@ The Service Provider `AlexKassel\DomainCore\Providers\DomainCoreServiceProvider`
 
 ### 1. Registering Domain Contexts (`DomainRegistryInterface`)
 
-Domains and storage contexts define database connection names, table prefixes, and migration paths:
+Use dedicated named constructors for maximum PhpStorm autocomplete:
 
 ```php
 use AlexKassel\DomainCore\Contracts\DomainRegistryInterface;
@@ -65,19 +70,35 @@ $registry = app(DomainRegistryInterface::class);
 
 // 1. Register domain profile
 $registry->registerDomain(
-    slug: 'domain-one',
-    name: 'Domain One',
-    metadata: ['category' => 'leasing']
+    slug: 'automotive-leasing',
+    name: 'Automotive Leasing',
+    metadata: ['category' => 'vehicles']
 );
 
-// 2. Register storage context (explicit context slug is required)
-$registry->registerStorageContext(new StorageContext(
-    domainSlug: 'domain-one',
+// 2. Register Relational Database Storage Context
+$registry->registerStorageContext(StorageContext::database(
+    domainSlug: 'automotive-leasing',
     contextSlug: 'primary',
-    connectionName: 'sqlite_domain_one_primary',
-    tablePrefix: 'one_primary_',
+    connectionName: 'sqlite_leasing_primary',
+    tablePrefix: 'leasing_primary_',
     migrationPaths: [__DIR__ . '/../database/migrations'],
-    autoCreateSqliteDatabase: true // Explicitly enable SQLite auto-creation for local tests/dev
+    autoCreateSqliteDatabase: true // Enable SQLite auto-creation for tests/dev
+));
+
+// 3. Register S3 / Filesystem Storage Context
+$registry->registerStorageContext(StorageContext::filesystem(
+    domainSlug: 'automotive-leasing',
+    contextSlug: 'raw-html',
+    disk: 's3',
+    basePath: 'leasing/raw-html/'
+));
+
+// 4. Register Redis Storage Context
+$registry->registerStorageContext(StorageContext::redis(
+    domainSlug: 'automotive-leasing',
+    contextSlug: 'transient-cache',
+    connection: 'default',
+    keyPrefix: 'leasing:cache:'
 ));
 ```
 
@@ -89,12 +110,20 @@ Execute business logic within an isolated domain and storage context:
 
 ```php
 use AlexKassel\DomainCore\Facades\DomainContext;
+use AlexKassel\DomainCore\DTOs\StorageContext;
 
-DomainContext::using('domain-one', 'primary', function (StorageContext $context) {
-    // Models automatically resolve connection and prefix for 'domain-one' -> 'primary'
-    $item = new App\Models\DomainItem();
-    $item->title = 'Item One';
+// Database Scope:
+DomainContext::using('automotive-leasing', 'primary', function (StorageContext $context) {
+    // Models automatically resolve connection and prefix for 'automotive-leasing' -> 'primary'
+    $item = new App\Models\LeasingOffer();
+    $item->title = 'Audi A4 Lease';
     $item->save();
+});
+
+// Filesystem / S3 Scope:
+DomainContext::using('automotive-leasing', 'raw-html', function (StorageContext $context) {
+    $disk = DomainContext::disk(); // Returns Laravel Filesystem disk instance ('s3')
+    $disk->put('payload_123.html', $htmlContent);
 });
 ```
 
@@ -107,22 +136,23 @@ Extend `ContextAwareModel` or use `HasDomainContextTrait`:
 ```php
 use AlexKassel\DomainCore\Database\Models\ContextAwareModel;
 
-class DomainItem extends ContextAwareModel
+class LeasingOffer extends ContextAwareModel
 {
-    protected $table = 'items';
-    protected $fillable = ['title', 'sku', 'price'];
+    protected $table = 'offers';
+    protected $fillable = ['title', 'price', 'vin'];
 }
 
-// Inside DomainContext::using('domain-one', 'primary') -> table resolves with domain prefix
+// Inside DomainContext::using('automotive-leasing', 'primary') -> queries 'leasing_primary_offers'
 ```
 
-For models needing explicit contexts or static domain binding:
+#### Static Domain Binding & Hijacking Protection
+For models permanently bound to a domain that must ignore outer ambient scopes:
 
 ```php
-class ArchiveItem extends ContextAwareModel
+class ArchiveOffer extends ContextAwareModel
 {
-    // Explicit domain binding cannot be hijacked by ambient scopes
-    protected ?string $explicitDomain = 'domain-one';
+    // Statically bound to 'automotive-leasing'
+    protected ?string $explicitDomain = 'automotive-leasing';
     protected ?string $explicitContext = 'archive';
     protected $table = 'archives';
 }
@@ -132,14 +162,16 @@ class ArchiveItem extends ContextAwareModel
 
 ### 4. Running Multi-Database Migrations
 
+`MigrationManager` automatically filters relational database contexts and skips non-relational storage:
+
 ```php
 use AlexKassel\DomainCore\Contracts\MigrationManagerInterface;
 
 $migrationManager = app(MigrationManagerInterface::class);
 
-// Run migrations for domain-one's primary context
+// Run migrations for automotive-leasing primary database
 $reports = $migrationManager->migrate(
-    domainSlug: 'domain-one',
+    domainSlug: 'automotive-leasing',
     contextSlug: 'primary',
     force: true
 );
@@ -147,7 +179,7 @@ $reports = $migrationManager->migrate(
 
 ---
 
-### 5. CLI Execution & Lock Protection (`CommandRunnerInterface`)
+### 5. CLI Execution & Distributed Lock Management
 
 ```php
 use AlexKassel\DomainCore\Contracts\CommandRunnerInterface;
@@ -170,10 +202,10 @@ $targetDomains = $runner->resolveTargetDomains($options);
 foreach ($targetDomains as $domain) {
     $report = $runner->executeDomain(
         domain: $domain,
-        componentKey: 'runner-one',
+        componentKey: 'scraper-job',
         callback: function (DomainProfile $profile) {
-            // Process domain logic
-            return 42; // Processed items count
+            // Business logic execution protected by distributed lock
+            return 42; // Items processed count
         },
         options: $options
     );
@@ -187,7 +219,7 @@ foreach ($targetDomains as $domain) {
 All package commands are grouped under the `domain:` namespace:
 
 ```bash
-# Display registration, connection, prefix, and status across domains
+# Display registration, connection, driver, and prefix/path across domains
 php artisan domain:status
 php artisan domain:status --domains=domain-one,domain-two
 
@@ -199,7 +231,7 @@ php artisan domain:migrate --domains=domain-one,domain-two
 # Rollback migrations
 php artisan domain:migrate --domain=domain-one --rollback --step=1
 
-# Reset or Fresh database (Safely drops only domain-prefixed tables on shared connections)
+# Reset or Fresh database (Safely drops ONLY domain-prefixed tables on shared connections)
 php artisan domain:migrate --domain=domain-one --fresh
 
 # Compile and atomically cache registered domain contexts for production
@@ -216,7 +248,7 @@ php artisan domain:make-domain domain-one --vendor=alex-kassel
 
 ## Testing
 
-Run the package test suite:
+Run the full package test suite:
 
 ```bash
 vendor/bin/phpunit
