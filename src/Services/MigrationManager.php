@@ -171,7 +171,7 @@ final class MigrationManager implements MigrationManagerInterface
                 $ran = $this->contextManager->using(
                     $context->domainSlug,
                     $context->contextSlug,
-                    function () use ($migrator, $db, $force, $pretend) {
+                    function () use ($migrator, $db, $pretend) {
                         if (empty($db->migrationPaths)) {
                             return [];
                         }
@@ -189,7 +189,7 @@ final class MigrationManager implements MigrationManagerInterface
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
                 connectionName: $db->connectionName,
-                executedMigrations: is_array($ran) ? array_map('strval', $ran) : [],
+                executedMigrations: array_map('strval', (array) $ran),
                 durationSeconds: $duration,
                 status: MigrationStatus::SUCCESS
             );
@@ -263,7 +263,7 @@ final class MigrationManager implements MigrationManagerInterface
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
                 connectionName: $db->connectionName,
-                executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
+                executedMigrations: array_map('strval', (array) $rolledBack),
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::SUCCESS
             );
@@ -335,7 +335,7 @@ final class MigrationManager implements MigrationManagerInterface
                 domainSlug: $context->domainSlug,
                 contextSlug: $context->contextSlug,
                 connectionName: $db->connectionName,
-                executedMigrations: is_array($rolledBack) ? array_map('strval', $rolledBack) : [],
+                executedMigrations: array_map('strval', (array) $rolledBack),
                 durationSeconds: round(microtime(true) - $startTime, 4),
                 status: MigrationStatus::SUCCESS
             );
@@ -377,8 +377,9 @@ final class MigrationManager implements MigrationManagerInterface
         if ($driver === 'mysql') {
             $connection->statement('SET FOREIGN_KEY_CHECKS = 0;');
             if ($db->tablePrefix !== '') {
-                /** @var array<int, object{name: string}> $rows */
-                $rows = $connection->select("SHOW TABLES LIKE '{$db->tablePrefix}%'");
+                $escapedPrefix = addcslashes($db->tablePrefix, '%_');
+                /** @var array<int, object> $rows */
+                $rows = $connection->select("SHOW TABLES LIKE '{$escapedPrefix}%'");
                 foreach ($rows as $row) {
                     $vals = array_values((array) $row);
                     $name = (string) $vals[0];
@@ -396,8 +397,9 @@ final class MigrationManager implements MigrationManagerInterface
         if ($driver === 'pgsql') {
             $connection->statement('SET CONSTRAINTS ALL DEFERRED;');
             if ($db->tablePrefix !== '') {
+                $escapedPrefix = addcslashes($db->tablePrefix, '%_');
                 /** @var array<int, object{tablename: string}> $rows */
-                $rows = $connection->select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE '{$db->tablePrefix}%'");
+                $rows = $connection->select("SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename LIKE ?", ["{$escapedPrefix}%"]);
                 foreach ($rows as $row) {
                     $name = $row->tablename;
                     $connection->statement("DROP TABLE IF EXISTS \"{$name}\" CASCADE");
