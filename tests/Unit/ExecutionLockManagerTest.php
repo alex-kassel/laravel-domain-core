@@ -28,10 +28,12 @@ final class ExecutionLockManagerTest extends TestCase
 
         $success = $this->lockManager->withLock('domain-one', 'runner', function () use (&$executed) {
             $executed = true;
+            self::assertTrue($this->lockManager->isLocked('domain-one', 'runner'));
         });
 
         self::assertTrue($success);
         self::assertTrue($executed);
+        self::assertFalse($this->lockManager->isLocked('domain-one', 'runner'));
     }
 
     public function testReleaseLockAllowsSubsequentExecution(): void

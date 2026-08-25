@@ -116,4 +116,81 @@ PHP;
         self::assertTrue($reports[0]->isSuccess());
         self::assertCount(1, $reports[0]->executedMigrations);
     }
+
+    public function testFailsWhenMigrationDirectoryDoesNotExist(): void
+    {
+        $registry = $this->app->make(DomainRegistryInterface::class);
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-one',
+            contextSlug: 'missing-path-ctx',
+            connectionName: 'sqlite_domain_one_primary',
+            tablePrefix: 'one_missing_',
+            migrationPaths: ['/invalid/non_existent/migration/directory'],
+        ));
+
+        $manager = $this->app->make(MigrationManagerInterface::class);
+        $reports = $manager->migrate('domain-one', 'missing-path-ctx', true);
+
+        self::assertCount(1, $reports);
+        self::assertFalse($reports[0]->isSuccess());
+        self::assertStringContainsString('does not exist on filesystem', $reports[0]->errorMessage ?? '');
+    }
+
+    public function testThrowsDomainNotFoundExceptionWhenMigratingUnregisteredDomain(): void
+    {
+        $manager = $this->app->make(MigrationManagerInterface::class);
+
+        $this->expectException(\AlexKassel\DomainCore\Exceptions\DomainNotFoundException::class);
+        $manager->migrate('non-existent-domain', null, true);
+    }
+
+    public function testFreshPreservesTablesOfOtherDomainsOnSharedDatabase(): void
+    {
+        // 1. Configure a single shared sqlite database for both domain-a and domain-b
+        config([
+            'database.connections.sqlite_shared_db' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'foreign_key_constraints' => true,
+            ],
+        ]);
+
+        $registry = $this->app->make(DomainRegistryInterface::class);
+
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-a',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_shared_db',
+            tablePrefix: 'prefix_a_',
+            migrationPaths: [$this->tempMigrationDir],
+        ));
+
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-b',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_shared_db',
+            tablePrefix: 'prefix_b_',
+            migrationPaths: [$this->tempMigrationDir],
+        ));
+
+        $manager = $this->app->make(MigrationManagerInterface::class);
+
+        // Migrate both domains into the shared DB
+        $manager->migrate('domain-a', 'primary', true);
+        $manager->migrate('domain-b', 'primary', true);
+
+        // Run fresh ONLY on domain-a
+        $reports = $manager->fresh('domain-a', 'primary', true);
+
+        self::assertCount(1, $reports);
+        self::assertTrue($reports[0]->isSuccess());
+
+        // Verify that domain-a and domain-b migrations ran, and isolation table naming works
+        $db = $this->app->make('db')->connection('sqlite_shared_db');
+        $schema = \Illuminate\Support\Facades\Schema::connection('sqlite_shared_db');
+
+        // Both domain_a and domain_b migration tables exist
+        self::assertTrue($schema->hasTable('prefix_a_migrations'));
+        self::assertTrue($schema->hasTable('prefix_b_migrations'));
+    }
 }

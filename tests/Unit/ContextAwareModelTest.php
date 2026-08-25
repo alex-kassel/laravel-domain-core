@@ -41,6 +41,7 @@ final class ContextAwareModelTest extends TestCase
             contextSlug: 'primary',
             connectionName: 'sqlite_domain_one_primary',
             tablePrefix: 'one_primary_',
+            autoCreateSqliteDatabase: true,
         ));
 
         $registry->registerStorageContext(new StorageContext(
@@ -48,6 +49,15 @@ final class ContextAwareModelTest extends TestCase
             contextSlug: 'archive',
             connectionName: 'sqlite_domain_one_archive',
             tablePrefix: 'one_archive_',
+            autoCreateSqliteDatabase: true,
+        ));
+
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-two',
+            contextSlug: 'primary',
+            connectionName: 'sqlite_domain_two_primary',
+            tablePrefix: 'two_primary_',
+            autoCreateSqliteDatabase: true,
         ));
     }
 
@@ -55,10 +65,10 @@ final class ContextAwareModelTest extends TestCase
     {
         $model = new DummyGenericItemModel();
 
-        // 1. Without context: returns default model table and null connection
+        // 1. Without context: returns base table, but throws on getConnectionName
         self::assertSame('items', $model->getTable());
 
-        // 2. In Primary Context
+        // 2. In Primary Context (Connection has prefix set in database config, so getTable returns 'items' and Connection handles prefix)
         DomainContext::using('domain-one', 'primary', function () use ($model) {
             self::assertSame('sqlite_domain_one_primary', $model->getConnectionName());
             self::assertSame('items', $model->getTable());
@@ -74,6 +84,40 @@ final class ContextAwareModelTest extends TestCase
         self::assertSame('items', $model->getTable());
     }
 
+    public function testModelPrefixesTableWhenConnectionPrefixIsEmpty(): void
+    {
+        // Configure connection WITHOUT prefix in config
+        config([
+            'database.connections.sqlite_no_conn_prefix' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+            ],
+        ]);
+
+        $registry = $this->app->make(DomainRegistryInterface::class);
+        $registry->registerStorageContext(new StorageContext(
+            domainSlug: 'domain-one',
+            contextSlug: 'no-conn-prefix',
+            connectionName: 'sqlite_no_conn_prefix',
+            tablePrefix: 'dynamic_prefix_',
+        ));
+
+        $model = new DummyGenericItemModel();
+
+        DomainContext::using('domain-one', 'no-conn-prefix', function () use ($model) {
+            self::assertSame('dynamic_prefix_items', $model->getTable());
+        });
+    }
+
+    public function testModelThrowsNoActiveStorageContextExceptionOutsideScopeWhenStrict(): void
+    {
+        $model = new DummyGenericItemModel();
+
+        $this->expectException(\AlexKassel\DomainCore\Exceptions\NoActiveStorageContextException::class);
+        $model->getConnectionName();
+    }
+
     public function testModelWithExplicitContextOverridesAmbientContext(): void
     {
         $explicitModel = new DummyExplicitArchiveModel();
@@ -81,6 +125,7 @@ final class ContextAwareModelTest extends TestCase
         // Inside 'primary' scope, the explicit archive model resolves 'archive' context
         DomainContext::using('domain-one', 'primary', function () use ($explicitModel) {
             self::assertSame('sqlite_domain_one_archive', $explicitModel->getConnectionName());
+            self::assertSame('one_archive_archives', $explicitModel->getTable());
         });
     }
 
@@ -90,5 +135,17 @@ final class ContextAwareModelTest extends TestCase
 
         // Resolves without any DomainContext::using scope
         self::assertSame('sqlite_domain_one_primary', $staticModel->getConnectionName());
+        self::assertSame('one_primary_static_items', $staticModel->getTable());
+    }
+
+    public function testStaticDomainBindingPreventsContextHijackingInAmbientScope(): void
+    {
+        $staticModel = new DummyStaticBoundModel(); // explicitDomain = 'domain-one', explicitContext = 'primary'
+
+        // Executing inside domain-two scope MUST NOT hijack domain-one model
+        DomainContext::using('domain-two', 'primary', function () use ($staticModel) {
+            self::assertSame('sqlite_domain_one_primary', $staticModel->getConnectionName());
+            self::assertSame('one_primary_static_items', $staticModel->getTable());
+        });
     }
 }

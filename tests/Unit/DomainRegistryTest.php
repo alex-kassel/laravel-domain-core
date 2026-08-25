@@ -109,6 +109,34 @@ final class DomainRegistryTest extends TestCase
         self::assertEqualsCanonicalizing(['/path/one', '/path/two'], $merged->migrationPaths);
     }
 
+    public function testThrowsExceptionOnInvalidDomainSlug(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->registry->registerDomain('invalid slug with spaces', 'Invalid Domain');
+    }
+
+    public function testThrowsExceptionOnStorageContextMergeWithDifferentConnection(): void
+    {
+        $context1 = new StorageContext(
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'db_one',
+            tablePrefix: 'one_',
+        );
+
+        $context2 = new StorageContext(
+            domainSlug: 'domain-one',
+            contextSlug: 'primary',
+            connectionName: 'db_two', // Different connection under same contextSlug!
+            tablePrefix: 'one_',
+        );
+
+        $this->registry->registerStorageContext($context1);
+
+        $this->expectException(StorageContextCollisionException::class);
+        $this->registry->registerStorageContext($context2);
+    }
+
     public function testCanCompileAndLoadCache(): void
     {
         $this->registry->registerDomain('domain-one', 'Domain One');

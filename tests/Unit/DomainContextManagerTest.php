@@ -31,6 +31,7 @@ final class DomainContextManagerTest extends TestCase
             contextSlug: 'primary',
             connectionName: 'sqlite_one_primary',
             tablePrefix: 'one_primary_',
+            autoCreateSqliteDatabase: true,
         ));
 
         $this->registry->registerStorageContext(new StorageContext(
@@ -38,6 +39,7 @@ final class DomainContextManagerTest extends TestCase
             contextSlug: 'archive',
             connectionName: 'sqlite_one_archive',
             tablePrefix: 'one_archive_',
+            autoCreateSqliteDatabase: true,
         ));
     }
 
@@ -91,6 +93,26 @@ final class DomainContextManagerTest extends TestCase
     {
         $ctx = $this->manager->setCurrent('domain-one', 'archive');
 
+        self::assertTrue($this->manager->hasCurrent());
+        self::assertSame('archive', $this->manager->current()->contextSlug);
+
+        $this->manager->clearCurrent();
+        self::assertFalse($this->manager->hasCurrent());
+    }
+
+    public function testManualSetCurrentDoesNotBreakScopedUsingStack(): void
+    {
+        $this->manager->using('domain-one', 'primary', function () {
+            self::assertSame('primary', $this->manager->current()->contextSlug);
+
+            // Set manual context while in using scope
+            $this->manager->setCurrent('domain-one', 'archive');
+
+            // Scoped stack still has precedence
+            self::assertSame('primary', $this->manager->current()->contextSlug);
+        });
+
+        // After using() exits, the manual context is retained as fallback
         self::assertTrue($this->manager->hasCurrent());
         self::assertSame('archive', $this->manager->current()->contextSlug);
 

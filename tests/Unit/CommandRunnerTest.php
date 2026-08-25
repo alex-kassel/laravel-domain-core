@@ -63,6 +63,17 @@ final class CommandRunnerTest extends TestCase
         self::assertSame('domain-a', $targets[0]->slug);
     }
 
+    public function testThrowsDomainNotFoundExceptionWhenTargetDomainNotRegistered(): void
+    {
+        $options = new CommandOptionsDTO(
+            all: false,
+            domains: ['domain-a', 'unknown-domain-x']
+        );
+
+        $this->expectException(\AlexKassel\DomainCore\Exceptions\DomainNotFoundException::class);
+        $this->runner->resolveTargetDomains($options);
+    }
+
     public function testExecutesDomainWithReport(): void
     {
         $domain = $this->registry->getDomain('domain-a');
