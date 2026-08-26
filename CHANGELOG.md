@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.3] - 2026-08-26
+
+### Added
+- Standard 5-section gold `RELEASE-GATE.md` certification layout.
+- Cross-platform centered Hero header in `README.md` (`<h1 align="center">` + `<p align="center">`) for identical rendering across GitHub and Packagist.
+- Short `Audit: Verified` badge and high-value navigation Quick Links.
+
+---
+
 ## [2.0.2] - 2026-08-25
 
 ### Changed

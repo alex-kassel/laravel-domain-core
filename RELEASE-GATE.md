@@ -10,7 +10,7 @@
 | Attribute | Certified Value |
 |---|---|
 | **Package Name** | `alex-kassel/laravel-domain-core` |
-| **Target Release Version** | `2.0.0` |
+| **Target Release Version** | `2.0.3` |
 | **Target Branch / Commit** | `main` (`42379c2`) |
 | **Release Verdict** | 🟢 **READY FOR RELEASE** |
 | **Audit Framework Version** | `1.0.13` |
@@ -73,7 +73,7 @@ OK (47 tests, 164 assertions)
 {
   "audit_run": ".audit/runs/alex-kassel/laravel-domain-core/latest/",
   "package": "alex-kassel/laravel-domain-core",
-  "version": "2.0.0",
+  "version": "2.0.3",
   "commit": "42379c2",
   "framework": "https://github.com/alex-kassel/laravel-package-audit",
   "framework_version": "1.0.13",
