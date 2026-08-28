@@ -51,7 +51,7 @@ Domain Profile (e.g., 'automotive-leasing')
 
 ## Requirements
 
-* **PHP:** 8.2+ (tested on 8.2, 8.3, 8.4)
+* **PHP:** 8.2+ (tested on 8.2, 8.3, 8.4, 8.5)
 * **Laravel Framework:** 11.x | 12.x | 13.x
 
 ---
@@ -237,11 +237,23 @@ All package commands are grouped under the `domain:` namespace:
 
 ## Testing
 
-Run unit and integration test suites:
+From the monorepo root, run the complete package verification pipeline:
 
 ```bash
-php artisan test -c packages/alex-kassel/laravel-domain-core/phpunit.xml
+composer pkg:check alex-kassel/laravel-domain-core --json
 ```
+
+---
+
+## Changelog
+
+Please see [CHANGELOG.md](CHANGELOG.md) for more information on what has changed recently.
+
+---
+
+## Security Vulnerabilities
+
+Please review the [security policy](https://github.com/alex-kassel/laravel-domain-core/security/policy) to report vulnerabilities.
 
 ---
 
